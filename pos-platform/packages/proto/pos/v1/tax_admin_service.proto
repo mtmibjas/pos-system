@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package pos.v1;
+
+option go_package = "github.com/mibjas/pos-platform/packages/sdk-go/gen/pos/v1;posv1";
+
+// TaxAdminService is the operator-facing surface for tax category +
+// component management. Used by the desktop client's settings UI so the
+// operator doesn't have to write raw SQL to define rates.
+//
+// Note: TaxAdminService writes are NOT events — they mutate the local
+// catalog directly. The cloud will eventually source tax catalogs from
+// a tenant-config push instead. Until then, this surface is the only
+// way to seed rates after Phase 2.
+service TaxAdminService {
+  rpc UpsertTaxCategory(UpsertTaxCategoryRequest) returns (UpsertTaxCategoryResponse);
+  rpc UpsertTaxComponent(UpsertTaxComponentRequest) returns (UpsertTaxComponentResponse);
+  rpc GetTaxCategory(GetTaxCategoryRequest) returns (GetTaxCategoryResponse);
+}
+
+message TaxCategory {
+  string id = 1;
+  string name = 2;
+  string tenant_id = 3;
+  bool price_includes_tax = 4;
+  repeated TaxComponent components = 5;
+}
+
+message TaxComponent {
+  string id = 1;
+  string tax_category_id = 2;
+  string name = 3;
+  int32 rate_basis_points = 4;                 // 10000 bp = 100%
+  int32 sort_order = 5;
+}
+
+message UpsertTaxCategoryRequest {
+  TaxCategory category = 1;                    // components ignored — set them with UpsertTaxComponent
+}
+
+message UpsertTaxCategoryResponse {
+  TaxCategory category = 1;
+}
+
+message UpsertTaxComponentRequest {
+  TaxComponent component = 1;
+}
+
+message UpsertTaxComponentResponse {
+  TaxComponent component = 1;
+}
+
+message GetTaxCategoryRequest {
+  string id = 1;
+}
+
+message GetTaxCategoryResponse {
+  TaxCategory category = 1;
+}

@@ -1,0 +1,182 @@
+syntax = "proto3";
+
+package pos.v1;
+
+import "google/protobuf/timestamp.proto";
+import "pos/v1/common.proto";
+
+option go_package = "github.com/mibjas/pos-platform/packages/sdk-go/gen/pos/v1;posv1";
+
+// EventEnvelope — every domain event flows through this envelope.
+// The actual payload is one of the typed Event* messages declared below,
+// carried in the `payload` oneof. See docs/event-contracts.md.
+//
+// Decision: oneof (not google.protobuf.Any) so the cloud + clients get
+// compile-time type safety, exhaustiveness checks on switches, and no
+// reflection at the hot path. New event types require a proto change +
+// regenerate (intentional friction — events are a contract).
+message EventEnvelope {
+  OperationId  operation_id = 1;     // idempotency key — MUST be a UUID
+  string       event_type = 2;       // e.g. "sale_created" — must match the oneof case
+  uint32       schema_version = 3;   // bump when payload shape changes
+  TenantId     tenant_id = 4;
+  OriginNode   origin = 5;
+  LamportClock clock = 6;
+  google.protobuf.Timestamp occurred_at = 7;  // wall-clock at origin (diagnostics only)
+
+  oneof payload {
+    SaleCreated        sale_created = 10;
+    PaymentAdded       payment_added = 11;
+    PaymentRefunded    payment_refunded = 12;
+    InventoryAdjusted  inventory_adjusted = 13;
+    StockTransferred   stock_transferred = 14;
+    SyncCompleted      sync_completed = 15;
+    SyncFailed         sync_failed = 16;
+    UserLoggedIn       user_logged_in = 17;
+    SaleVoided         sale_voided = 18;
+    SaleRefunded       sale_refunded = 19;
+  }
+}
+
+// --- Domain events (Development Guide §8) ---
+//
+// IMPORTANT: events represent things that happened. They are append-only.
+// Never publish "stock = 5" — publish "item_sold -1".
+
+message SaleCreated {
+  string sale_id = 1;
+  StoreId store_id = 2;
+  CounterId counter_id = 3;
+  UserId cashier_id = 4;
+  repeated SaleLine lines = 5;
+  Money subtotal = 6;
+  Money tax_total = 7;
+  Money grand_total = 8;
+}
+
+message SaleLine {
+  string sku = 1;
+  string description = 2;
+  int64 quantity = 3;       // negative for returns within a sale
+  Money unit_price = 4;
+  Money line_total = 5;
+  string line_id = 6;       // UUID — joins with refund_lines.sale_line_id
+  // Added in Phase 5 (slice 5.2). Lets the cloud GL projection split
+  // Tax Payable per tax_category_id. Empty = unclassified (posts to
+  // 2100.unclassified). Older binaries leave this blank — handled.
+  string tax_category_id = 7;
+  // Per-line tax magnitude. Sum across lines == SaleCreated.tax_total.
+  // Older binaries leave this nil — cloud falls back to spreading
+  // tax_total proportionally if missing.
+  Money line_tax = 8;
+}
+
+message PaymentAdded {
+  string payment_id = 1;
+  string sale_id = 2;
+  string method = 3;        // "cash" | "card" | "upi" | ...
+  Money amount = 4;
+  string reference = 5;     // gateway txn id etc.
+}
+
+message PaymentRefunded {
+  string refund_id = 1;
+  string original_payment_id = 2;
+  Money amount = 3;
+  string reason = 4;
+}
+
+message InventoryAdjusted {
+  string sku = 1;
+  int64  delta = 2;         // append-only; -1 for a sale, +n for receiving
+  string reason = 3;        // "sale" | "receive" | "stock_take" | "shrinkage"
+  string ref_id = 4;        // links to sale_id, transfer_id, etc.
+}
+
+message StockTransferred {
+  string transfer_id = 1;
+  string sku = 2;
+  int64  quantity = 3;
+  StoreId from_store = 4;
+  StoreId to_store = 5;
+}
+
+message SyncCompleted {
+  string batch_id = 1;
+  uint32 operations_count = 2;
+}
+
+message SyncFailed {
+  string batch_id = 1;
+  string reason = 2;
+  uint32 retry_count = 3;
+}
+
+message UserLoggedIn {
+  UserId user_id = 1;
+  string device_id = 2;
+}
+
+// SaleVoided fully reverses a sale issued in the same shift. Conceptually
+// "this sale never happened" — restores inventory, reverses payments. The
+// originating SaleCreated stays in the log (events are append-only); this
+// is the compensating event.
+message SaleVoided {
+  string void_id = 1;           // == operation_id, idempotency key
+  string sale_id = 2;           // the SaleCreated being voided
+  string invoice_number = 3;    // the invoice that was issued for the original sale
+  StoreId store_id = 4;
+  CounterId counter_id = 5;
+  UserId cashier_id = 6;
+  string reason = 7;
+}
+
+// SaleRefunded refunds zero-or-more lines of an earlier sale, in whole or
+// in part. The cloud rebuilds line-balance from the original SaleCreated
+// minus the sum of RefundLine.quantity across all SaleRefunded events for
+// that sale. Issued tenders are paired with refund tenders by Method
+// (card-line refunds settle back to card, cash to cash) — see slice 2.4
+// design notes.
+message SaleRefunded {
+  string refund_id = 1;          // == operation_id, idempotency key
+  string sale_id = 2;            // the SaleCreated being refunded
+  string credit_note_number = 3; // CN-YYYY-NNNNNN (per-store-per-year)
+  StoreId store_id = 4;
+  CounterId counter_id = 5;
+  UserId cashier_id = 6;
+  string reason = 7;
+  repeated RefundLine lines = 8;
+  Money subtotal = 9;            // amount returned, magnitude (positive)
+  Money tax_total = 10;
+  Money grand_total = 11;
+  repeated RefundTender tenders = 12;
+}
+
+// RefundLine is one line of a refund. Quantity is positive (magnitude);
+// the implicit sign is "returned to customer". sale_line_id references the
+// LineID of the SaleLine being (partially) refunded.
+message RefundLine {
+  string sale_line_id = 1;
+  string sku = 2;
+  int64  quantity = 3;
+  bool   restock = 4;          // false = damaged return, do not re-shelve
+  Money  unit_price = 5;
+  Money  line_total = 6;
+  // Added in Phase 5 (slice 5.2). Copied forward from the original
+  // SaleLine.tax_category_id so the cloud can reverse the right Tax
+  // Payable sub-account.
+  string tax_category_id = 7;
+  // Per-line refund tax magnitude. Sum across lines == SaleRefunded.tax_total.
+  Money  line_tax = 8;
+}
+
+// RefundTender is one tender returned to the customer.
+// original_payment_id ties this refund tender back to a specific original
+// PaymentAdded so the cloud can pair them.
+message RefundTender {
+  string refund_payment_id = 1;
+  string original_payment_id = 2;
+  string method = 3;
+  Money  amount = 4;           // magnitude (positive); event semantics imply outflow
+  string reference = 5;
+}

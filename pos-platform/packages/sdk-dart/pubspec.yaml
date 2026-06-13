@@ -1,0 +1,26 @@
+# Generated Dart bindings for the pos.v1 contracts.
+#
+# This package mirrors packages/sdk-go: the .pb.dart + connect files under
+# lib/gen/ are generated from packages/proto/pos/v1/*.proto via `make
+# proto-gen`. The generated files ARE committed so contributors can pull
+# the repo and `flutter run` apps/desktop-pos without running buf locally.
+#
+# Consumers (apps/desktop-pos, future apps/mobile-owner) depend on this
+# package via a path: dependency in the monorepo.
+name: pos_sdk
+description: Generated Dart bindings + Connect-RPC clients for pos.v1 contracts.
+publish_to: none
+version: 0.0.1
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  protobuf: ^4.1.0
+  connectrpc: ^1.0.0
+  fixnum: ^1.1.0
+  http: ^1.2.0
+
+dev_dependencies:
+  test: ^1.25.0
+  lints: ^4.0.0

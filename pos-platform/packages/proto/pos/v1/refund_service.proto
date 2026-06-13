@@ -1,0 +1,106 @@
+syntax = "proto3";
+
+package pos.v1;
+
+import "google/protobuf/timestamp.proto";
+import "pos/v1/common.proto";
+
+option go_package = "github.com/mibjas/pos-platform/packages/sdk-go/gen/pos/v1;posv1";
+
+// RefundService exposes void + refund flows. See refunds/service.go for
+// the canonical contract — this proto is a thin adapter on top.
+//
+// Idempotency: identical void_id / refund_id replay returns the prior
+// response with idempotent=true.
+service RefundService {
+  rpc VoidSale(VoidSaleRequest) returns (VoidSaleResponse);
+  rpc RefundSale(RefundSaleRequest) returns (RefundSaleResponse);
+}
+
+// --- VoidSale ---
+
+message VoidSaleRequest {
+  string void_id = 1;                          // UUID; idempotency key
+  string sale_id = 2;                          // sale to void
+  StoreId store_id = 3;
+  CounterId counter_id = 4;
+  UserId cashier_id = 5;
+  string reason = 6;
+  google.protobuf.Timestamp occurred_at = 7;
+}
+
+message VoidSaleResponse {
+  string void_id = 1;
+  string batch_id = 2;
+  uint64 lamport = 3;
+  Void void = 4;
+  bool idempotent = 5;
+}
+
+message Void {
+  string void_id = 1;
+  string sale_id = 2;
+  string invoice_id = 3;
+  StoreId store_id = 4;
+  CounterId counter_id = 5;
+  UserId cashier_id = 6;
+  string reason = 7;
+  bytes snapshot = 8;                          // serialized SaleVoided
+  google.protobuf.Timestamp voided_at = 9;
+}
+
+// --- RefundSale ---
+
+message RefundSaleRequest {
+  string refund_id = 1;                        // UUID; idempotency key
+  string sale_id = 2;                          // sale to refund
+  StoreId store_id = 3;
+  CounterId counter_id = 4;
+  UserId cashier_id = 5;
+  string reason = 6;
+  google.protobuf.Timestamp occurred_at = 7;
+  repeated RefundSaleLine lines = 8;
+  repeated RefundSaleTender tenders = 9;
+}
+
+message RefundSaleLine {
+  string sale_line_id = 1;                     // line_id of original SaleLine
+  string sku = 2;
+  int64 quantity = 3;                          // positive magnitude
+  bool restock = 4;                            // false = damaged return
+  Money unit_price = 5;
+  Money line_total = 6;
+  string tax_category_id = 7;                  // required for server-authoritative tax recompute
+}
+
+message RefundSaleTender {
+  string refund_payment_id = 1;                // UUID for the new refund payment
+  string original_payment_id = 2;              // must reference an existing payment with same method
+  string method = 3;
+  Money amount = 4;                            // positive magnitude
+  string reference = 5;
+}
+
+message RefundSaleResponse {
+  string refund_id = 1;
+  string batch_id = 2;
+  uint64 lamport = 3;
+  Refund refund = 4;
+  bool idempotent = 5;
+}
+
+message Refund {
+  string refund_id = 1;
+  string sale_id = 2;
+  string invoice_id = 3;
+  string credit_note_number = 4;               // CN-YYYY-NNNNNN
+  StoreId store_id = 5;
+  CounterId counter_id = 6;
+  UserId cashier_id = 7;
+  string reason = 8;
+  Money subtotal = 9;
+  Money tax_total = 10;
+  Money grand_total = 11;
+  bytes snapshot = 12;                         // serialized SaleRefunded
+  google.protobuf.Timestamp refunded_at = 13;
+}

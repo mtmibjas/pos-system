@@ -1,0 +1,10 @@
+# Local-dev user store for cloud-api /v1/auth/login.
+# Hand-edit to add more users. Re-hash a password with:
+#   go run ./cmd/seed-dev -password=NEW -username=u -force
+# then merge the produced entry into the existing file.
+users:
+    - username: owner@tenant-a
+      tenant_id: tenant-A
+      roles:
+        - owner
+      bcrypt: $2a$10$5W2V.2rsG0KK7.W58ZRi1.134vjzO3C1PitDvWiEOAEciaBD4K/.u

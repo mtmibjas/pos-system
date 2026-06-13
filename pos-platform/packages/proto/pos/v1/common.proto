@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package pos.v1;
+
+option go_package = "github.com/mibjas/pos-platform/packages/sdk-go/gen/pos/v1;posv1";
+
+// Money is a fixed-precision monetary amount.
+//
+// We avoid floats. `units` is the whole units (e.g. 12 for $12.34) and
+// `nanos` is the fractional part in nanos (10^-9) — matches Google's
+// google.type.Money convention.
+//
+// currency_code is ISO-4217 (e.g. "USD", "INR").
+message Money {
+  string currency_code = 1;
+  int64  units = 2;
+  int32  nanos = 3;
+}
+
+// Identifiers — all UUIDs are serialized as RFC-4122 strings.
+message TenantId   { string value = 1; }
+message StoreId    { string value = 1; }
+message CounterId  { string value = 1; }
+message UserId     { string value = 1; }
+message OperationId{ string value = 1; }  // operation_uuid — idempotency key
+
+// OriginNode identifies where an operation was first created.
+// Required for conflict diagnosis and replay-attack defence.
+message OriginNode {
+  string node_id   = 1;   // stable per device install (UUID)
+  StoreId store_id = 2;
+  CounterId counter_id = 3;  // empty for cloud-originated operations
+}
+
+// LamportClock pairs a logical counter with a node id so that the cloud
+// can order operations across stores without trusting wall-clock time.
+// (Clock-drift handling — see docs/sync-rules.md.)
+message LamportClock {
+  uint64 counter = 1;
+  string node_id = 2;
+}
+
+// SignedEnvelope wraps any operation payload with a detached signature.
+// Required for sync transport — see docs/security-rules.md (signed operations).
+message SignedEnvelope {
+  bytes  payload   = 1;   // serialized inner message
+  string algorithm = 2;   // e.g. "ed25519"
+  bytes  signature = 3;
+  string key_id    = 4;   // public-key fingerprint
+}

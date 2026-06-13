@@ -1,0 +1,56 @@
+// This is a generated file - do not edit.
+//
+// Generated from pos/v1/reservation_service.proto.
+
+// @dart = 3.3
+
+// ignore_for_file: annotate_overrides, camel_case_types, comment_references
+// ignore_for_file: constant_identifier_names
+// ignore_for_file: curly_braces_in_flow_control_structures
+// ignore_for_file: deprecated_member_use_from_same_package, library_prefixes
+// ignore_for_file: non_constant_identifier_names
+
+import 'dart:async' as $async;
+import 'dart:core' as $core;
+
+import 'package:protobuf/protobuf.dart' as $pb;
+
+import 'reservation_service.pb.dart' as $2;
+import 'reservation_service.pbjson.dart';
+
+export 'reservation_service.pb.dart';
+
+abstract class ReservationServiceBase extends $pb.GeneratedService {
+  $async.Future<$2.ReserveResponse> reserve(
+      $pb.ServerContext ctx, $2.ReserveRequest request);
+  $async.Future<$2.ReleaseResponse> release(
+      $pb.ServerContext ctx, $2.ReleaseRequest request);
+
+  $pb.GeneratedMessage createRequest($core.String methodName) {
+    switch (methodName) {
+      case 'Reserve':
+        return $2.ReserveRequest();
+      case 'Release':
+        return $2.ReleaseRequest();
+      default:
+        throw $core.ArgumentError('Unknown method: $methodName');
+    }
+  }
+
+  $async.Future<$pb.GeneratedMessage> handleCall($pb.ServerContext ctx,
+      $core.String methodName, $pb.GeneratedMessage request) {
+    switch (methodName) {
+      case 'Reserve':
+        return reserve(ctx, request as $2.ReserveRequest);
+      case 'Release':
+        return release(ctx, request as $2.ReleaseRequest);
+      default:
+        throw $core.ArgumentError('Unknown method: $methodName');
+    }
+  }
+
+  $core.Map<$core.String, $core.dynamic> get $json =>
+      ReservationServiceBase$json;
+  $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
+      get $messageJson => ReservationServiceBase$messageJson;
+}

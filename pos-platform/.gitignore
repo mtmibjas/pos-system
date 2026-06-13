@@ -1,0 +1,54 @@
+# Go
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+bin/
+dist/
+coverage.out
+coverage.html
+vendor/
+
+# Go workspace lock
+go.work.sum
+
+# SQLite (local data — must never be committed)
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+build/
+.packages
+
+# IDE / editors
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Protobuf generated (regenerate via `make proto-gen`)
+packages/proto/gen/
+
+# OpenAPI generated
+packages/sdk-go/openapi/
+
+# Logs
+*.log
+logs/

@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package pos.v1;
+
+import "google/protobuf/timestamp.proto";
+import "pos/v1/common.proto";
+import "pos/v1/events.proto";
+
+option go_package = "github.com/mibjas/pos-platform/packages/sdk-go/gen/pos/v1;posv1";
+
+// Operation is the on-disk shape of one row in operations_log
+// (Development Guide §9). It is also the wire shape sent to the cloud.
+message Operation {
+  OperationId  operation_id = 1;   // UUID — primary idempotency key
+  string       operation_type = 2; // mirrors event_type
+  string       entity_type = 3;    // "sale" | "payment" | "inventory" | ...
+  string       entity_id = 4;
+  EventEnvelope envelope = 5;      // the actual event
+  google.protobuf.Timestamp created_at = 6;
+  OriginNode   origin = 7;
+  uint32       retry_count = 8;
+}
+
+// SyncBatch — operations that MUST be applied atomically (Development Guide §12).
+// Example: invoice + payment + stock movement go in one batch.
+message SyncBatch {
+  string batch_id = 1;              // UUID
+  TenantId tenant_id = 2;
+  repeated Operation operations = 3;
+  google.protobuf.Timestamp client_sent_at = 4;
+}
+
+message SyncBatchAck {
+  string batch_id = 1;
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    STATUS_APPLIED = 1;            // batch fully applied (or already applied — idempotent)
+    STATUS_DUPLICATE = 2;          // already seen; safe to drop from queue
+    STATUS_REJECTED = 3;           // malformed / signature failure / tenant mismatch
+    STATUS_RETRY_LATER = 4;        // transient cloud error
+  }
+  Status status = 2;
+  string message = 3;       // human-readable diagnostic
+  repeated OperationAck operation_acks = 4;
+}
+
+message OperationAck {
+  OperationId operation_id = 1;
+  SyncBatchAck.Status status = 2;
+  string error = 3;
+}

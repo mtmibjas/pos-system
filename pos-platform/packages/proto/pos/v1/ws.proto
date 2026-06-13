@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package pos.v1;
+
+import "google/protobuf/timestamp.proto";
+import "pos/v1/common.proto";
+import "pos/v1/events.proto";
+
+option go_package = "github.com/mibjas/pos-platform/packages/sdk-go/gen/pos/v1;posv1";
+
+// WsMessage — every websocket frame between local-store-server and POS clients
+// is one of these. Using a single envelope avoids ad-hoc framing.
+message WsMessage {
+  string message_id = 1;       // UUID per frame — lets clients dedupe on reconnect
+  google.protobuf.Timestamp sent_at = 2;
+  oneof body {
+    Hello          hello = 10;
+    Subscribe      subscribe = 11;
+    EventEnvelope  event = 12;
+    InventoryUpdate inventory = 13;
+    CartUpdate     cart = 14;
+    Heartbeat      heartbeat = 15;
+    Goodbye        goodbye = 16;
+  }
+}
+
+// Hello — client → server on connect. Includes resume cursor for replay.
+message Hello {
+  CounterId counter_id = 1;
+  UserId    user_id = 2;
+  string    last_seen_message_id = 3;   // empty on first connect
+}
+
+// Subscribe — coarse-grained topic subscription (e.g. "inventory", "cart").
+message Subscribe {
+  repeated string topics = 1;
+}
+
+// InventoryUpdate — broadcast when stock for a SKU changes at this store.
+// Carries the new derived quantity so clients don't have to replay all events.
+message InventoryUpdate {
+  string sku = 1;
+  int64  quantity_on_hand = 2;
+  google.protobuf.Timestamp as_of = 3;
+}
+
+// CartUpdate — for "live cart" multi-counter visibility (Phase 4).
+message CartUpdate {
+  string cart_id = 1;
+  CounterId counter_id = 2;
+  enum State { STATE_UNSPECIFIED = 0; STATE_OPEN = 1; STATE_PARKED = 2; STATE_CLOSED = 3; }
+  State state = 3;
+  uint32 line_count = 4;
+}
+
+message Heartbeat { uint64 seq = 1; }
+message Goodbye   { string reason = 1; }

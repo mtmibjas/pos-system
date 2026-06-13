@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package pos.v1;
+
+import "google/protobuf/timestamp.proto";
+import "pos/v1/common.proto";
+
+option go_package = "github.com/mibjas/pos-platform/packages/sdk-go/gen/pos/v1;posv1";
+
+// ItemService is the operator-facing catalog surface. The desktop
+// client browses/searches items to build a cart; the picked SKU and
+// denormalized price + tax_category_id then flow through
+// FinalizeSaleLine on SaleService.Finalize.
+//
+// Like TaxAdminService, item writes are NOT events — they mutate the
+// local catalog directly. The cloud will eventually push a tenant
+// catalog down; until then, UpsertItem (and cmd/seed-demo) are the
+// only seed paths.
+service ItemService {
+  rpc UpsertItem(UpsertItemRequest) returns (UpsertItemResponse);
+  rpc GetItem(GetItemRequest) returns (GetItemResponse);
+  rpc ListItems(ListItemsRequest) returns (ListItemsResponse);
+}
+
+// Item is one row in the catalog. SKU is the primary key — matches
+// what FinalizeSaleLine.sku already wires. tenant_id is pinned from
+// server config on writes (ignored on the wire).
+//
+// price is a Money; nil = unset (a write-time error). tax_category_id
+// MAY be empty, which the tax engine treats as EXEMPT. archived is a
+// soft-delete flag — archived items don't appear in default ListItems,
+// but GetItem still returns them so historical sale lines resolve.
+message Item {
+  string sku = 1;
+  string tenant_id = 2;
+  string name = 3;
+  Money price = 4;
+  string tax_category_id = 5;
+  bool archived = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message UpsertItemRequest {
+  Item item = 1;
+}
+
+message UpsertItemResponse {
+  Item item = 1;
+}
+
+message GetItemRequest {
+  string sku = 1;
+}
+
+message GetItemResponse {
+  Item item = 1;
+}
+
+// ListItemsRequest has no pagination — a single shop's catalog stays
+// small enough to fetch in one shot. Add a page_token field if/when
+// that stops being true.
+message ListItemsRequest {
+  bool include_archived = 1;
+}
+
+message ListItemsResponse {
+  repeated Item items = 1;
+}

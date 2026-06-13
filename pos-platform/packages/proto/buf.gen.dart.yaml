@@ -1,0 +1,27 @@
+# Codegen for the pos.v1 contracts — Dart side.
+#
+# Output:
+#   - Dart types        → packages/sdk-dart/lib/gen/pos/v1/
+#   - Connect-Dart      → packages/sdk-dart/lib/gen/pos/v1/ (sibling .connect.client.dart files)
+#   - Well-known types  → packages/sdk-dart/lib/gen/google/protobuf/
+#
+# Run via the root Makefile's `proto-gen` target, which invokes:
+#   buf generate --template buf.gen.dart.yaml --include-imports --include-wkt
+#
+# --include-wkt is REQUIRED because the protobuf 4.x Dart runtime does
+# not bundle google.protobuf.Timestamp et al; the generator emits a
+# relative import that we must satisfy locally.
+#
+# The Dart plugins (protoc-gen-dart, protoc-gen-connect-dart) live in
+# $HOME/.pub-cache/bin — the Makefile prepends that to $PATH for you.
+#
+# Plugin versions pinned via `dart pub global activate`:
+#   protoc_plugin       22.5.0  (matches protobuf ^4.1.0 — connectrpc 1.x cap)
+#   connectrpc          (latest; ships protoc-gen-connect-dart)
+
+version: v2
+plugins:
+  - local: protoc-gen-dart
+    out: ../sdk-dart/lib/gen
+  - local: protoc-gen-connect-dart
+    out: ../sdk-dart/lib/gen

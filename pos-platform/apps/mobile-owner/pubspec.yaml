@@ -1,0 +1,30 @@
+name: mobile_owner
+description: Mobile owner dashboard (iOS + Android). Talks to cloud-api (REST/OpenAPI).
+publish_to: 'none'
+version: 0.0.1+1
+
+environment:
+  sdk: ^3.5.0
+  flutter: ">=3.24.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # State management
+  flutter_riverpod: ^2.5.0
+  riverpod_annotation: ^2.3.0
+  # Networking: generated OpenAPI client + plain http for ad-hoc calls
+  http: ^1.2.0
+  # Persistence
+  shared_preferences: ^2.2.0      # editable server URL (settings screen)
+  flutter_secure_storage: ^9.0.0  # JWT at rest (login session)
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  build_runner: ^2.4.0
+  riverpod_generator: ^2.4.0
+
+flutter:
+  uses-material-design: true

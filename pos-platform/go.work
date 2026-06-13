@@ -1,0 +1,7 @@
+go 1.25.0
+
+use (
+	./apps/local-store-server
+	./apps/cloud-api
+	./packages/sdk-go
+)

@@ -1,0 +1,40 @@
+name: desktop_pos
+description: Desktop POS application (macOS). Talks to the local-store-server over HTTP/Connect.
+publish_to: 'none'
+version: 0.0.1+1
+
+environment:
+  sdk: ^3.5.0
+  flutter: ">=3.24.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # Generated pos.v1 bindings + Connect-Dart clients.
+  pos_sdk:
+    path: ../../packages/sdk-dart
+  # State management — annotation-driven codegen flavor.
+  flutter_riverpod: ^2.5.0
+  riverpod_annotation: ^2.3.0
+  # Connect-RPC transport. protobuf is pinned by pos_sdk's constraint
+  # (^4.1.0); we don't redeclare it here.
+  connectrpc: ^1.0.0
+  http: ^1.2.0
+  # UUID minting for sale_id / line_id / payment_id on Finalize.
+  uuid: ^4.0.0
+  # Int64 for Money.units; protobuf re-exports fixnum but our app code
+  # uses it directly when constructing Money client-side.
+  fixnum: ^1.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  # Riverpod codegen (run via: dart run build_runner build).
+  build_runner: ^2.4.0
+  riverpod_generator: ^2.4.0
+  custom_lint: ^0.6.0
+  riverpod_lint: ^2.3.0
+
+flutter:
+  uses-material-design: true

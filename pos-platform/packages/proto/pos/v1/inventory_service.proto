@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package pos.v1;
+
+import "pos/v1/common.proto";
+
+option go_package = "github.com/mibjas/pos-platform/packages/sdk-go/gen/pos/v1;posv1";
+
+// InventoryService is the read-side surface for stock-on-hand views.
+// Write operations land via SaleService.Finalize / RefundService.* —
+// inventory movements are an internal append-only ledger.
+service InventoryService {
+  // ListOnHand returns the live per-SKU on-hand quantity for one store.
+  // Empty / unseeded SKUs are omitted. Results are sorted by SKU.
+  rpc ListOnHand(ListOnHandRequest) returns (ListOnHandResponse);
+}
+
+message ListOnHandRequest {
+  StoreId store_id = 1;
+}
+
+message ListOnHandResponse {
+  repeated OnHandRow rows = 1;
+}
+
+// OnHandRow joins inventory_movements (summed) with the item catalog.
+// name + price come from the items table; on_hand is the derived
+// COALESCE(SUM(delta),0) over non-voided movements. SKUs present in
+// either source render — unmatched items show 0, unmatched movements
+// show empty name.
+message OnHandRow {
+  string sku = 1;
+  string name = 2;
+  Money price = 3;
+  int64 on_hand = 4;
+}

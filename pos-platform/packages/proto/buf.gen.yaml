@@ -1,0 +1,25 @@
+# Codegen for the pos.v1 contracts — Go side.
+#
+# Output:
+#   - Go types          → packages/sdk-go/gen/pos/v1/
+#   - Connect-Go        → packages/sdk-go/gen/pos/v1/posv1connect/
+#
+# Run via the root Makefile's `proto-gen` target. Generated files ARE
+# committed so contributors can build without buf + plugins installed.
+#
+# Dart bindings live in a separate template (buf.gen.dart.yaml) because
+# the Dart toolchain needs --include-imports --include-wkt to emit
+# google/protobuf/timestamp.pb.dart; running that flag against this Go
+# template would pollute sdk-go/gen with redundant well-known-type
+# files that already live in google.golang.org/protobuf/types/known.
+
+version: v2
+plugins:
+  - local: protoc-gen-go
+    out: ../sdk-go/gen
+    opt:
+      - paths=source_relative
+  - local: protoc-gen-connect-go
+    out: ../sdk-go/gen
+    opt:
+      - paths=source_relative

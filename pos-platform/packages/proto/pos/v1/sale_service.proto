@@ -1,0 +1,124 @@
+syntax = "proto3";
+
+package pos.v1;
+
+import "google/protobuf/timestamp.proto";
+import "pos/v1/common.proto";
+
+option go_package = "github.com/mibjas/pos-platform/packages/sdk-go/gen/pos/v1;posv1";
+
+// SaleService is the customer-facing transactional surface of the
+// local-store-server. The desktop client calls Finalize when the operator
+// hits "Pay" on a fully-tendered cart. Server is authoritative on tax;
+// caller-supplied totals (if non-zero) must match the engine's output.
+//
+// Idempotency: identical sale_id replay returns the prior FinalizeResponse
+// with idempotent=true rather than creating a duplicate sale.
+service SaleService {
+  rpc Finalize(FinalizeRequest) returns (FinalizeResponse);
+
+  // GetSale is the read-side lookup for a finalized sale. Returns
+  // NotFound if neither key resolves. The caller picks the key — UI
+  // typically uses invoice_number (operator-facing); reversal flows
+  // already hold sale_id and use that.
+  rpc GetSale(GetSaleRequest) returns (GetSaleResponse);
+}
+
+// FinalizeRequest mirrors sales.FinalizeRequest. tenant_id is
+// pinned from server config and ignored if set on the wire — the API
+// is single-tenant per instance.
+message FinalizeRequest {
+  string sale_id = 1;                          // UUID; idempotency key
+  StoreId store_id = 2;
+  CounterId counter_id = 3;
+  UserId cashier_id = 4;
+  repeated FinalizeSaleLine lines = 5;
+  repeated FinalizeSaleTender tenders = 6;
+  Money subtotal = 7;                          // OPTIONAL; engine fills if zero
+  Money tax_total = 8;                         // OPTIONAL
+  Money grand_total = 9;                       // OPTIONAL
+  google.protobuf.Timestamp occurred_at = 10;  // wall-clock at origin
+
+  // Slice 4.3: reservation_ids the cart is consuming. Server finalizes
+  // them in the same transaction as the sale so the held quantity drops
+  // from inventory.Available instantly (no 5-min false-depletion window).
+  // Unknown / non-active ids cause the Finalize to fail FailedPrecondition
+  // BEFORE any movements are written — the cart is stale and needs reload.
+  repeated string reservation_ids = 11;
+}
+
+message FinalizeSaleLine {
+  string line_id = 1;                          // UUID; per-line key for refund lookup
+  string sku = 2;
+  string description = 3;
+  int64 quantity = 4;
+  Money unit_price = 5;
+  Money line_total = 6;                        // = unit_price * quantity
+  string tax_category_id = 7;                  // empty = exempt
+}
+
+message FinalizeSaleTender {
+  string payment_id = 1;                       // UUID
+  string method = 2;                           // "cash" | "card" | "upi" | ...
+  Money amount = 3;                            // positive
+  string reference = 4;
+}
+
+message FinalizeResponse {
+  string sale_id = 1;
+  string batch_id = 2;
+  uint64 lamport = 3;
+  Invoice invoice = 4;
+  bool idempotent = 5;
+}
+
+// GetSaleRequest selects a sale by exactly one of the two keys. Empty
+// key is InvalidArgument.
+message GetSaleRequest {
+  oneof key {
+    string sale_id = 1;          // UUID
+    string invoice_number = 2;   // INV-YYYY-NNNNNN
+  }
+}
+
+// GetSaleResponse mirrors Invoice plus the per-line and per-tender
+// detail. Lines are sourced from the canonical SaleCreated snapshot;
+// payments come from the local payments projection.
+message GetSaleResponse {
+  Invoice invoice = 1;
+  repeated GetSaleLine lines = 2;
+  repeated GetSalePayment payments = 3;
+}
+
+message GetSaleLine {
+  string line_id = 1;            // UUID; pair with refund_lines.sale_line_id
+  string sku = 2;
+  string description = 3;
+  int64 quantity = 4;
+  Money unit_price = 5;
+  Money line_total = 6;
+}
+
+message GetSalePayment {
+  string payment_id = 1;         // UUID
+  string method = 2;             // "cash" | "card" | "upi" | ...
+  Money amount = 3;
+  string reference = 4;
+}
+
+// Invoice is the local read projection of a finalized sale. Snapshot is
+// the canonical serialized SaleCreated bytes for clients that want the
+// full per-line detail.
+message Invoice {
+  string invoice_id = 1;
+  string sale_id = 2;
+  string invoice_number = 3;                   // INV-YYYY-NNNNNN
+  StoreId store_id = 4;
+  CounterId counter_id = 5;
+  UserId cashier_id = 6;
+  Money subtotal = 7;
+  Money tax_total = 8;
+  Money grand_total = 9;
+  bytes snapshot = 10;                         // serialized SaleCreated
+  google.protobuf.Timestamp finalized_at = 11;
+}

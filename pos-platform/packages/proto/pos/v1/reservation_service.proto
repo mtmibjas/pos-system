@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package pos.v1;
+
+import "google/protobuf/timestamp.proto";
+import "pos/v1/common.proto";
+
+option go_package = "github.com/mibjas/pos-platform/packages/sdk-go/gen/pos/v1;posv1";
+
+// ReservationService is the soft-inventory hold surface — Phase 4 slice
+// 4.3. Counters call Reserve when items hit the cart and Release if the
+// cart is abandoned. SaleService.Finalize finalizes reservations as part
+// of the sale's atomic commit (via FinalizeRequest.reservation_ids).
+//
+// Holds are intra-store ONLY: never synced to the cloud, never produce
+// inventory_movements. They participate in InventoryService.ListOnHand
+// indirectly via the held-quantity subtracted from the on-hand sum.
+service ReservationService {
+  // Reserve creates a new active hold or fails with FailedPrecondition if
+  // available stock is insufficient (after lazily expiring stale holds).
+  rpc Reserve(ReserveRequest) returns (ReserveResponse);
+
+  // Release cancels an active hold. Idempotent on already-released rows.
+  rpc Release(ReleaseRequest) returns (ReleaseResponse);
+
+  // ExtendDeferred — TTL bump — is intentionally not exposed in 4.3; if a
+  // cashier needs more than 5 min, they should re-reserve. We'll add it
+  // only if real usage demands it.
+}
+
+message ReserveRequest {
+  string reservation_id = 1;        // optional UUID; server allocates if empty
+  string sku = 2;
+  StoreId store_id = 3;
+  CounterId counter_id = 4;
+  int64 quantity = 5;               // positive
+}
+
+message ReserveResponse {
+  Reservation reservation = 1;
+  int64 available_qty = 2;          // available AFTER this reservation
+}
+
+message ReleaseRequest {
+  string reservation_id = 1;        // UUID
+}
+
+message ReleaseResponse {
+  Reservation reservation = 1;
+}
+
+message Reservation {
+  string reservation_id = 1;
+  string sku = 2;
+  StoreId store_id = 3;
+  CounterId counter_id = 4;
+  int64 quantity = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp expires_at = 7;
+  string status = 8;                // 'active' | 'released' | 'finalized' | 'expired'
+}
