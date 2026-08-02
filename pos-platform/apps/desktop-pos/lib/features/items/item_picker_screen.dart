@@ -8,16 +8,21 @@
 /// Errors render in-place with a Retry button. Empty results render a
 /// gentle "no items" placeholder (and a hint to run `make seed-demo`).
 ///
-/// Slice 2.13: a USB-HID barcode scanner that types into the focused
-/// app is routed through ScanBuffer. We only consume key events when
-/// the search field is NOT focused so manual typing still works.
+/// Slice 2.13 / step 8c: a USB-HID barcode scanner that types into the
+/// focused app is routed through the [BarcodeScanner] port (its default HID
+/// adapter wraps `scan_buffer.dart`). We only feed key events when the search
+/// field is NOT focused so manual typing still works.
 library;
+
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pos_sdk/gen/pos/v1/item_service.pb.dart';
 
+import '../../hardware/hardware_providers.dart';
+import '../../hardware/ports.dart';
 import '../cart/cart_controller.dart';
 import '../cart/cart_screen.dart';
 import '../cart/money_format.dart';
@@ -25,7 +30,6 @@ import '../inventory/inventory_screen.dart';
 import '../lookup/sale_lookup_screen.dart';
 import '../reservations/reservations_controller.dart';
 import 'items_controller.dart';
-import 'scan_buffer.dart';
 
 class ItemPickerScreen extends ConsumerStatefulWidget {
   const ItemPickerScreen({super.key});
@@ -37,29 +41,40 @@ class ItemPickerScreen extends ConsumerStatefulWidget {
 class _ItemPickerScreenState extends ConsumerState<ItemPickerScreen> {
   final _searchCtrl = TextEditingController();
   final _searchFocus = FocusNode();
-  final _scanner = ScanBuffer();
+  late final BarcodeScanner _scanner;
+  StreamSubscription<String>? _scanSub;
   String _query = '';
 
   @override
+  void initState() {
+    super.initState();
+    // Consume the BarcodeScanner PORT, not a raw buffer (step 8c). The
+    // provider owns the adapter (keepAlive); we just feed keys + listen.
+    _scanner = ref.read(barcodeScannerProvider);
+    _scanSub = _scanner.scans.listen(_onScanned);
+  }
+
+  @override
   void dispose() {
+    _scanSub?.cancel();
     _searchCtrl.dispose();
     _searchFocus.dispose();
     super.dispose();
   }
 
-  /// Routes a hardware key event into the scan buffer.
+  /// Routes a hardware key event into the scanner port.
   ///
   /// Skips events while the search field is focused (so manual typing
   /// still works), while non-data routes (e.g. modifier keys) are
-  /// ignored. The buffer commits on Enter / Numpad Enter — the wire
-  /// terminator USB-HID scanners default to.
+  /// ignored. The scanner emits on Enter / Numpad Enter — the wire
+  /// terminator USB-HID scanners default to — surfacing on [_onScanned]
+  /// via the port's scans stream.
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
     if (_searchFocus.hasFocus) return KeyEventResult.ignored;
     if (event.logicalKey == LogicalKeyboardKey.enter ||
         event.logicalKey == LogicalKeyboardKey.numpadEnter) {
-      final payload = _scanner.commit();
-      if (payload.isNotEmpty) _onScanned(payload);
+      _scanner.terminate();
       return KeyEventResult.handled;
     }
     final ch = event.character;
@@ -71,11 +86,12 @@ class _ItemPickerScreenState extends ConsumerState<ItemPickerScreen> {
     // poisoning the buffer.
     final code = ch.codeUnitAt(0);
     if (code < 0x20 || code > 0x7e) return KeyEventResult.ignored;
-    _scanner.add(ch);
+    _scanner.feedChar(ch);
     return KeyEventResult.handled;
   }
 
   void _onScanned(String sku) {
+    if (!mounted) return;
     final items = ref.read(itemsControllerProvider).valueOrNull;
     if (items == null) return;
     final match = items.firstWhere(

@@ -15,6 +15,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pos_sdk/gen/pos/v1/refund_service.pb.dart';
 
+import '../../config.dart';
+import '../../hardware/hardware_providers.dart';
+import '../../hardware/receipt_document.dart';
 import '../reversal/refund_controller.dart';
 import '../reversal/reversal_receipt_screen.dart';
 import '../reversal/void_controller.dart';
@@ -63,6 +66,13 @@ class ReceiptScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(invoice.invoiceNumber),
         automaticallyImplyLeading: false,
+        actions: [
+          IconButton(
+            tooltip: 'Print receipt',
+            icon: const Icon(Icons.print_outlined),
+            onPressed: () => _printReceipt(context, ref, record, cart),
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(24),
@@ -158,6 +168,49 @@ class ReceiptScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  /// Build a [ReceiptDocument] from the finalized sale and send it through
+  /// the [ReceiptPrinter] port. Best-effort — a print failure surfaces a
+  /// snackbar, never blocks or undoes the completed sale.
+  Future<void> _printReceipt(
+    BuildContext context,
+    WidgetRef ref,
+    FinalizeRecord record,
+    CartState cart,
+  ) async {
+    final invoice = record.response.invoice;
+    final cfg = ref.read(terminalConfigProvider);
+    final doc = ReceiptDocument(
+      storeName: cfg.terminalName,
+      invoiceNumber: invoice.invoiceNumber,
+      timestamp: DateTime.now(),
+      items: [
+        for (final l in cart.lines)
+          ReceiptLineItem(
+            description: l.description,
+            quantity: l.quantity,
+            lineTotal: formatMoney(l.lineTotal),
+          ),
+      ],
+      subtotal: formatMoney(invoice.subtotal),
+      taxTotal: formatMoney(invoice.taxTotal),
+      grandTotal: formatMoney(invoice.grandTotal),
+      tenderLabel: record.tenders
+          .map((t) => '${t.method.wireName.toUpperCase()}  '
+              '${formatMoney(t.amount)}')
+          .join('  '),
+      footer: 'Thank you!',
+    );
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(receiptPrinterProvider).printReceipt(doc);
+      messenger.showSnackBar(
+          const SnackBar(content: Text('Receipt sent to printer')));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Print failed: $e')));
+    }
   }
 
   void _newSale(BuildContext context, WidgetRef ref) {

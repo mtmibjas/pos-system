@@ -18,11 +18,17 @@
 /// the client clamps to 1..999 per line as a UX guard.
 library;
 
+import 'dart:async';
+
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter/foundation.dart' show immutable;
 import 'package:pos_sdk/gen/pos/v1/common.pb.dart';
 import 'package:pos_sdk/gen/pos/v1/item_service.pb.dart' as itempb;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:uuid/uuid.dart';
+
+import '../../config.dart';
+import '../../data/cart_draft_store.dart';
 
 part 'cart_controller.g.dart';
 
@@ -59,9 +65,15 @@ class CartLine {
 /// (Riverpod relies on referential change to fire rebuilds).
 @immutable
 class CartState {
-  const CartState({this.lines = const []});
+  const CartState({this.lines = const [], this.saleId});
 
   final List<CartLine> lines;
+
+  /// Stable idempotency key for this draft's sale (§5.2). Minted when the
+  /// first line is added, persisted with the draft, and reused by Finalize
+  /// so a lost-reply retry replays the same sale server-side. Null on an
+  /// empty cart.
+  final String? saleId;
 
   bool get isEmpty => lines.isEmpty;
   int get lineCount => lines.length;
@@ -88,8 +100,34 @@ const int kMaxQtyPerLine = 999;
 
 @Riverpod(keepAlive: true)
 class CartController extends _$CartController {
+  static const _uuid = Uuid();
+
   @override
-  CartState build() => const CartState();
+  CartState build() {
+    // Start empty, then hydrate any persisted draft (§3 crash recovery).
+    unawaited(_hydrate());
+    return const CartState();
+  }
+
+  /// Restore the checkpointed draft on launch — but only if the operator
+  /// hasn't already started a fresh cart while the (fast, local) load ran.
+  ///
+  /// Best-effort: crash recovery is a safety net, so a persistence failure
+  /// (e.g. DB unavailable) must never block the till — we just start empty.
+  Future<void> _hydrate() async {
+    try {
+      final terminal = ref.read(terminalConfigProvider);
+      final restored = await ref.read(cartDraftStoreProvider).load(
+            storeId: terminal.storeId,
+            counterId: terminal.counterId,
+          );
+      if (restored != null && restored.lines.isNotEmpty && state.isEmpty) {
+        state = restored;
+      }
+    } catch (_) {
+      // Draft restore is non-critical; ignore and continue with an empty cart.
+    }
+  }
 
   /// Adds a picker tap. If the SKU is already in the cart, bumps qty
   /// by 1 (capped); otherwise inserts a new line at the end.
@@ -98,10 +136,12 @@ class CartController extends _$CartController {
     if (idx >= 0) {
       final cur = state.lines[idx];
       final nextQty = (cur.quantity + 1).clamp(1, kMaxQtyPerLine);
-      _replaceAt(idx, cur.copyWith(quantity: nextQty));
+      final next = [...state.lines];
+      next[idx] = cur.copyWith(quantity: nextQty);
+      _commit(next);
       return;
     }
-    state = CartState(lines: [
+    _commit([
       ...state.lines,
       CartLine(
         sku: item.sku,
@@ -123,30 +163,64 @@ class CartController extends _$CartController {
       return;
     }
     final clamped = qty.clamp(1, kMaxQtyPerLine);
-    _replaceAt(idx, state.lines[idx].copyWith(quantity: clamped));
+    final next = [...state.lines];
+    next[idx] = state.lines[idx].copyWith(quantity: clamped);
+    _commit(next);
   }
 
   void removeLine(String sku) {
-    state = CartState(
-      lines: state.lines.where((l) => l.sku != sku).toList(growable: false),
-    );
+    _commit(state.lines.where((l) => l.sku != sku).toList(growable: false));
   }
 
   void clear() {
     state = const CartState();
+    _clearDraft();
   }
 
   /// Replaces the cart wholesale with `lines`. Used by the sale-lookup
   /// flow (slice 2.11) to seed the cart from a previously finalized
   /// sale so the receipt screen can render it for void/refund.
   void replaceLines(List<CartLine> lines) {
-    state = CartState(lines: List<CartLine>.unmodifiable(lines));
+    _commit(List<CartLine>.unmodifiable(lines));
   }
 
-  void _replaceAt(int idx, CartLine line) {
-    final next = [...state.lines];
-    next[idx] = line;
-    state = CartState(lines: next);
+  /// The single choke point for cart changes: mint/keep the stable sale_id,
+  /// update state, and checkpoint the draft (§3, per-mutation cadence).
+  void _commit(List<CartLine> lines) {
+    final saleId = lines.isEmpty ? null : (state.saleId ?? _uuid.v4());
+    state = CartState(lines: lines, saleId: saleId);
+    _persist();
+  }
+
+  void _persist() {
+    final terminal = ref.read(terminalConfigProvider);
+    final store = ref.read(cartDraftStoreProvider);
+    final snapshot = state;
+    unawaited(_guard(() => store.save(
+          snapshot,
+          storeId: terminal.storeId,
+          counterId: terminal.counterId,
+          nowIso: DateTime.now().toUtc().toIso8601String(),
+        )));
+  }
+
+  void _clearDraft() {
+    final terminal = ref.read(terminalConfigProvider);
+    final store = ref.read(cartDraftStoreProvider);
+    unawaited(_guard(() => store.clear(
+          storeId: terminal.storeId,
+          counterId: terminal.counterId,
+        )));
+  }
+
+  /// Best-effort checkpoint: swallow persistence errors so a failing DB never
+  /// crashes a mutation. The cart in memory remains the working truth.
+  Future<void> _guard(Future<void> Function() op) async {
+    try {
+      await op();
+    } catch (_) {
+      // Checkpoint is advisory; ignore.
+    }
   }
 }
 

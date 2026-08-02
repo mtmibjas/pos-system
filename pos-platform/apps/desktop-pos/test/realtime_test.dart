@@ -101,7 +101,11 @@ void main() {
 /// Exported (no leading underscore) so other test files can reuse it.
 class FakeRealtimeChannel implements RealtimeChannel {
   final _ctl = StreamController<RealtimeFrame>.broadcast();
+  final _connCtl = StreamController<bool>.broadcast();
   int _hw = 0;
+
+  /// Push a connect/disconnect edge for connection-health tests.
+  void pushConnected(bool up) => _connCtl.add(up);
 
   void pushJson(Map<String, dynamic> m) {
     RealtimeFrame? frame;
@@ -131,8 +135,14 @@ class FakeRealtimeChannel implements RealtimeChannel {
   Stream<RealtimeFrame> get stream => _ctl.stream;
 
   @override
+  Stream<bool> get connected => _connCtl.stream;
+
+  @override
   int get highWaterLamport => _hw;
 
   @override
-  Future<void> close() => _ctl.close();
+  Future<void> close() async {
+    await _ctl.close();
+    await _connCtl.close();
+  }
 }

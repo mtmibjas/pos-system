@@ -29,6 +29,9 @@ dependencies:
   # credential (docs/store-server-auth-contract.md §4.2). Windows
   # Credential Manager / macOS Keychain.
   flutter_secure_storage: ^9.2.2
+  sqflite_common_ffi: ^2.4.0+3
+  path_provider: ^2.1.6
+  sqlite3_flutter_libs: ^0.5.24
 
 dev_dependencies:
   flutter_test:

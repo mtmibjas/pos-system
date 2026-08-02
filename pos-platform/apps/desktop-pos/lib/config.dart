@@ -28,12 +28,18 @@ class TerminalConfig {
     required this.storeId,
     required this.counterId,
     required this.terminalName,
+    this.printerTarget = 'noop',
   });
 
   final String serverUrl;
   final String storeId;
   final String counterId;
   final String terminalName;
+
+  /// Receipt-printer adapter selector (docs/desktop-hardware-ports.md §3).
+  /// `'noop'` (default), `'network:HOST:PORT'` (ESC/POS over TCP), or
+  /// `'file:PATH'` (spool the ESC/POS bytes to a file). USB/serial later.
+  final String printerTarget;
 }
 
 /// The active terminal config. Defaults to the Phase-2 values; overridden in

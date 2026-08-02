@@ -12,6 +12,9 @@
 /// construct a RefundSale request (per-tender original_payment_id refs).
 library;
 
+import 'dart:async';
+
+import 'package:connectrpc/connect.dart' as connect;
 import 'package:flutter/foundation.dart' show immutable;
 import 'package:pos_sdk/gen/pos/v1/common.pb.dart';
 import 'package:pos_sdk/gen/pos/v1/sale_service.pb.dart';
@@ -19,12 +22,28 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../config.dart';
+import '../../core/connection_health_provider.dart';
+import '../../core/rpc_policy.dart';
+import '../../data/cart_draft_store.dart';
+import '../../data/pending_finalize_store.dart';
 import '../../data/sale_repository.dart';
 import '../auth/session_controller.dart';
 import '../reservations/reservations_controller.dart';
 import 'cart_controller.dart';
+import 'pending_finalize_controller.dart';
 
 part 'finalize_controller.g.dart';
+
+/// Raised when Finalize is attempted while the store server is unreachable
+/// (docs/desktop-local-persistence.md §5.1 / architecture §4.7). NOT a system
+/// failure — a precondition the UI surfaces as a calm, actionable message.
+/// The cart draft is safe in SQLite; finalize re-enables on reconnect.
+class FinalizeBlockedException implements Exception {
+  const FinalizeBlockedException();
+  @override
+  String toString() =>
+      'Cannot finalize — store server unreachable. Your cart is saved.';
+}
 
 /// Tender method the user picks on the tender screen.
 enum TenderMethod {
@@ -89,7 +108,17 @@ class FinalizeController extends _$FinalizeController {
   }) async {
     if (cart.isEmpty) return;
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() => _submit(cart, method, amount));
+    state = await AsyncValue.guard(() async {
+      // Write-gate (§4.7): never finalize while the store server is
+      // unreachable — no coordinator means we can't guard against
+      // cross-counter oversell. The draft is already checkpointed, so
+      // blocking loses nothing. Thrown inside guard so it surfaces as a
+      // clean AsyncError (and isn't clobbered by build()'s async completion).
+      if (ref.read(connectionHealthControllerProvider).isUnreachable) {
+        throw const FinalizeBlockedException();
+      }
+      return _submit(cart, method, amount);
+    });
   }
 
   Future<FinalizeRecord> _submit(
@@ -101,7 +130,10 @@ class FinalizeController extends _$FinalizeController {
     final cfg = ref.read(terminalConfigProvider);
     final reservations =
         ref.read(reservationsControllerProvider.notifier);
-    final saleId = _uuid.v4();
+    // Use the draft's STABLE sale_id (§5.2) so a lost-reply retry replays the
+    // same sale server-side. Fall back to a fresh id only if the cart was
+    // seeded without a draft (e.g. a lookup-loaded sale).
+    final saleId = cart.saleId ?? _uuid.v4();
     final tender = TenderRecord(
       paymentId: _uuid.v4(),
       method: method,
@@ -144,16 +176,74 @@ class FinalizeController extends _$FinalizeController {
       // subtotal/taxTotal/grandTotal omitted → server tax engine fills them.
       occurredAt: DateTime.now(),
     );
-    final resp = await repo.finalize(input);
-    // Server consumed the reservations as part of the commit; drop the
-    // local ledger without calling Release (those rows are gone).
+
+    // Persist-before-call (§5.3): record the exact request so a lost reply
+    // can be safely replayed (same sale_id → server idempotent replay).
+    final pending = ref.read(pendingFinalizeStoreProvider);
+    await _tryPending(() => pending.put(
+          input,
+          storeId: cfg.storeId,
+          counterId: cfg.counterId,
+          nowIso: DateTime.now().toUtc().toIso8601String(),
+        ));
+
+    final FinalizeResponse resp;
+    try {
+      resp = await repo.finalize(input);
+    } on connect.ConnectException catch (e) {
+      // Transport failure (ambiguous) → KEEP the pending row for reconnect
+      // replay. A definitive server error (business/auth) → the sale was not
+      // committed; clear it so we never replay a rejected sale.
+      if (classifyTransportFailure(e) == null) {
+        await _tryPending(() =>
+            pending.clear(storeId: cfg.storeId, counterId: cfg.counterId));
+      }
+      _nudgePending(); // surface/clear the pending banner promptly
+      rethrow;
+    }
+
+    // Clean success → the sale is committed; drop the pending row and the
+    // checkpointed draft (best-effort; a lingering draft stays idempotent
+    // via its stable sale_id).
     reservations.clearAfterFinalize();
+    await _tryPending(
+        () => pending.clear(storeId: cfg.storeId, counterId: cfg.counterId));
+    _nudgePending();
+    unawaited(_clearDraft(cfg));
     return FinalizeRecord(
       response: resp,
       saleId: saleId,
       lineIdsBySku: lineIds,
       tenders: [tender],
     );
+  }
+
+  /// Ask the reconciler to re-read pending status so the banner updates
+  /// without waiting for the next reconnect. Best-effort.
+  void _nudgePending() {
+    try {
+      unawaited(ref.read(pendingFinalizeControllerProvider.notifier).refresh());
+    } catch (_) {}
+  }
+
+  /// Best-effort pending-row op: persistence must never crash a sale.
+  Future<void> _tryPending(Future<void> Function() op) async {
+    try {
+      await op();
+    } catch (_) {
+      // Replay safety is a bonus; a DB failure here still lets the sale run.
+    }
+  }
+
+  Future<void> _clearDraft(TerminalConfig cfg) async {
+    try {
+      await ref.read(cartDraftStoreProvider).clear(
+            storeId: cfg.storeId,
+            counterId: cfg.counterId,
+          );
+    } catch (_) {
+      // Non-critical; the stable sale_id keeps a stray draft idempotent.
+    }
   }
 
   /// Resets state to idle (used by the receipt screen when starting

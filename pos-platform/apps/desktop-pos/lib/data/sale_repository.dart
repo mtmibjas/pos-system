@@ -24,6 +24,7 @@ import 'package:pos_sdk/gen/pos/v1/sale_service.connect.client.dart';
 import 'package:pos_sdk/gen/pos/v1/sale_service.pb.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../core/rpc_policy.dart';
 import '../core/transport.dart';
 
 part 'sale_repository.g.dart';
@@ -135,7 +136,9 @@ class ConnectSaleRepository implements SaleRepository {
       reservationIds: input.reservationIds,
       occurredAt: Timestamp.fromDateTime(input.occurredAt.toUtc()),
     );
-    return client.finalize(req);
+    // Finalize is a WRITE: no auto-retry (idempotent replay on an ambiguous
+    // response is step 6's job), 10 s deadline. See rpc_policy.dart.
+    return client.finalize(req, headers: writeCallHeaders());
   }
 }
 

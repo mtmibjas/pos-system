@@ -25,12 +25,12 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 
 import 'package:flutter/foundation.dart' show immutable;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../config.dart';
+import 'backoff.dart';
 
 part 'realtime.g.dart';
 
@@ -89,6 +89,11 @@ class RealtimeControlFrame extends RealtimeFrame {
 abstract class RealtimeChannel {
   Stream<RealtimeFrame> get stream;
 
+  /// Connect/disconnect edges: `true` when the socket connects, `false`
+  /// when it drops. A broadcast stream consumed by the connection-health
+  /// aggregator as a free liveness signal (desktop-connection-resilience §3).
+  Stream<bool> get connected;
+
   /// The highest envelope lamport we've delivered. Useful for tests;
   /// production reconnect uses this internally.
   int get highWaterLamport;
@@ -130,12 +135,17 @@ class IoRealtimeChannel implements RealtimeChannel {
   final Duration _maxBackoff;
   final StreamController<RealtimeFrame> _ctl =
       StreamController<RealtimeFrame>.broadcast();
+  final StreamController<bool> _connCtl = StreamController<bool>.broadcast();
   WebSocket? _ws;
   bool _closed = false;
+  bool _wasConnected = false;
   int _highWater = 0;
 
   @override
   Stream<RealtimeFrame> get stream => _ctl.stream;
+
+  @override
+  Stream<bool> get connected => _connCtl.stream;
 
   @override
   int get highWaterLamport => _highWater;
@@ -149,10 +159,19 @@ class IoRealtimeChannel implements RealtimeChannel {
       // best-effort
     }
     await _ctl.close();
+    await _connCtl.close();
+  }
+
+  void _emitConnected(bool up) {
+    if (_wasConnected == up) return; // only edges
+    _wasConnected = up;
+    if (!_connCtl.isClosed) _connCtl.add(up);
   }
 
   Future<void> _runLoop() async {
-    var backoff = _initialBackoff;
+    // Exponential-with-jitter backoff, shared with the RPC retry policy so
+    // reconnect timing lives in one tested place (backoff.dart).
+    final backoff = Backoff(initial: _initialBackoff, max: _maxBackoff);
     while (!_closed) {
       try {
         // On reconnect, request a replay from the highest lamport we've
@@ -161,7 +180,8 @@ class IoRealtimeChannel implements RealtimeChannel {
         final uri = Uri.parse('$_url?since_lamport=$_highWater');
         final ws = await WebSocket.connect(uri.toString());
         _ws = ws;
-        backoff = _initialBackoff; // reset on successful connect.
+        backoff.reset(); // reset on successful connect.
+        _emitConnected(true);
         await for (final raw in ws) {
           if (raw is! String) continue;
           final decoded = _safeDecode(raw);
@@ -177,15 +197,9 @@ class IoRealtimeChannel implements RealtimeChannel {
         // Connection error or unexpected close — fall through to backoff.
       }
       _ws = null;
+      _emitConnected(false);
       if (_closed) break;
-      await Future<void>.delayed(backoff);
-      // Exponential with jitter to avoid thundering-herd if many counters
-      // wake at the same time after a power blip.
-      final next = backoff * 2;
-      backoff = next > _maxBackoff ? _maxBackoff : next;
-      final jitterMs = Random().nextInt(250);
-      backoff += Duration(milliseconds: jitterMs);
-      if (backoff > _maxBackoff) backoff = _maxBackoff;
+      await Future<void>.delayed(backoff.next());
     }
   }
 
