@@ -5,14 +5,14 @@
 ///   - sale_id is a UUID v4
 ///   - cart lines become FinalizeSaleLines with the right qty / price
 ///   - tender row carries the picked method + amount
-///   - store/counter/cashier come from config constants
+///   - store/counter/cashier come from the config seam (TerminalConfig +
+///     cashierId providers, default values)
 /// And on failure, the totals-mismatch FailedPrecondition surfaces as
 /// AsyncError(ConnectException).
 library;
 
 import 'package:connectrpc/connect.dart' as connect;
 import 'package:connectrpc/test.dart' as ctest;
-import 'package:desktop_pos/config.dart';
 import 'package:desktop_pos/core/transport.dart';
 import 'package:desktop_pos/features/cart/cart_controller.dart';
 import 'package:desktop_pos/features/cart/finalize_controller.dart';
@@ -76,9 +76,10 @@ void main() {
 
     expect(captured, isNotNull);
     expect(captured!.saleId, hasLength(36)); // uuid v4 canonical
-    expect(captured!.storeId.value, kStoreId);
-    expect(captured!.counterId.value, kCounterId);
-    expect(captured!.cashierId.value, kCashierId);
+    // Default TerminalConfig + cashierId provider values (the config seam).
+    expect(captured!.storeId.value, 'store-1');
+    expect(captured!.counterId.value, 'counter-1');
+    expect(captured!.cashierId.value, 'cashier-1');
     expect(captured!.lines, hasLength(2));
     expect(captured!.lines[0].sku, 'A');
     expect(captured!.lines[0].quantity.toInt(), 1);

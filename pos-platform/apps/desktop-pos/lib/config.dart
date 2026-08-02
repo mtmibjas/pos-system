@@ -1,20 +1,51 @@
-/// Compile-time configuration for the desktop POS client.
+/// Per-terminal configuration for the desktop POS client.
 ///
-/// Phase 2 Half B keeps the local-store-server URL hardcoded
-/// (see memory: project_phase2b_decisions.md). When mDNS / a settings
-/// screen lands, this const becomes a Riverpod Provider sourced from
-/// persistent settings — the transport provider in core/transport.dart
-/// is already wired to swap to a Provider without touching screens.
+/// This is the **config seam** (docs/desktop-architecture.md §6 step 1):
+/// the Phase-2 hardcoded consts become a [TerminalConfig] exposed through a
+/// Riverpod provider, so the transport, the realtime channel, and the
+/// controllers all read the server URL + store/counter identity from ONE
+/// overridable place. The defaults preserve the previous hardcoded values,
+/// so this slice is a pure seam with NO behavior change.
+///
+/// Later slices source [terminalConfigProvider] from persisted per-terminal
+/// provisioning (§4.1), and [cashierIdProvider] from the auth session
+/// (§4.2 / §6 step 3) — at which point this file's defaults fall away.
 library;
 
-const String kLocalServerUrl = 'http://127.0.0.1:8081';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-// --- Identity placeholders (Slice 2.9) ------------------------------------
-//
-// No login / station-provisioning flow exists yet. SaleService.Finalize
-// still requires store/counter/cashier identifiers in its request, so
-// we ship constants. These become real values when the provisioning
-// flow lands (Phase 3+).
-const String kStoreId = 'store-1';
-const String kCounterId = 'counter-1';
-const String kCashierId = 'cashier-1';
+part 'config.g.dart';
+
+/// Immutable per-terminal settings: where the store server is, and which
+/// store + counter this terminal is.
+///
+/// `cashierId` is deliberately NOT here — it is operator identity, not
+/// terminal identity. It lives in the auth feature's `cashierIdProvider`
+/// (features/auth/session_controller.dart), derived from the session.
+class TerminalConfig {
+  const TerminalConfig({
+    required this.serverUrl,
+    required this.storeId,
+    required this.counterId,
+    required this.terminalName,
+  });
+
+  final String serverUrl;
+  final String storeId;
+  final String counterId;
+  final String terminalName;
+}
+
+/// The active terminal config. Defaults to the Phase-2 values; overridden in
+/// tests via `ProviderScope`, and (later) replaced by a provider that reads
+/// persisted provisioning.
+@Riverpod(keepAlive: true)
+TerminalConfig terminalConfig(TerminalConfigRef ref) {
+  return const TerminalConfig(
+    serverUrl: 'http://127.0.0.1:8081',
+    storeId: 'store-1',
+    counterId: 'counter-1',
+    terminalName: 'desktop-pos',
+  );
+}
+

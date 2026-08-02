@@ -6,7 +6,6 @@ library;
 
 import 'package:connectrpc/connect.dart' as connect;
 import 'package:connectrpc/test.dart' as ctest;
-import 'package:desktop_pos/config.dart';
 import 'package:desktop_pos/core/transport.dart';
 import 'package:desktop_pos/features/reversal/void_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -48,9 +47,10 @@ void main() {
     expect(captured!.voidId, hasLength(36));
     expect(captured!.saleId, 'sale-xyz');
     expect(captured!.reason, 'duplicate ring-up');
-    expect(captured!.storeId.value, kStoreId);
-    expect(captured!.counterId.value, kCounterId);
-    expect(captured!.cashierId.value, kCashierId);
+    // Default TerminalConfig + cashierId provider values (the config seam).
+    expect(captured!.storeId.value, 'store-1');
+    expect(captured!.counterId.value, 'counter-1');
+    expect(captured!.cashierId.value, 'cashier-1');
   });
 
   test('voidSale() surfaces FailedPrecondition (window closed) as AsyncError',

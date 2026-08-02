@@ -29,10 +29,13 @@ import (
 	"syscall"
 	"time"
 
+	"connectrpc.com/connect"
+
 	"github.com/mibjas/pos-platform/apps/local-store-server/internal/api"
 	"github.com/mibjas/pos-platform/apps/local-store-server/internal/catalogsync"
 	"github.com/mibjas/pos-platform/apps/local-store-server/internal/clock"
 	"github.com/mibjas/pos-platform/apps/local-store-server/internal/db"
+	"github.com/mibjas/pos-platform/apps/local-store-server/internal/devices"
 	"github.com/mibjas/pos-platform/apps/local-store-server/internal/hub"
 	"github.com/mibjas/pos-platform/apps/local-store-server/internal/inventory"
 	"github.com/mibjas/pos-platform/apps/local-store-server/internal/invoices"
@@ -45,6 +48,8 @@ import (
 	"github.com/mibjas/pos-platform/apps/local-store-server/internal/sync"
 	"github.com/mibjas/pos-platform/apps/local-store-server/internal/syncstate"
 	"github.com/mibjas/pos-platform/apps/local-store-server/internal/tax"
+	"github.com/mibjas/pos-platform/apps/local-store-server/internal/users"
+	"github.com/mibjas/pos-platform/packages/sdk-go/auth"
 )
 
 func main() {
@@ -55,10 +60,16 @@ func main() {
 	dbPath := envOr("POS_LOCAL_DB", "pos-local.db")
 	cloudURL := envOr("POS_CLOUD_URL", "http://localhost:8080")
 	tenantID := envOr("POS_TENANT_ID", "tenant-A")
+	storeID := envOr("POS_STORE_ID", "store-1")
 	nodeID := envOr("POS_NODE_ID", "node-local")
 	storeTZName := envOr("POS_STORE_TZ", "UTC")
 	voidWindowStr := envOr("POS_VOID_WINDOW", "12h")
 	listenAddr := envOr("POS_LISTEN_ADDR", "127.0.0.1:8081")
+	// AuthService (docs/store-server-auth-contract.md). When the session
+	// secret is unset, the auth feature is OFF and the server runs
+	// unauthenticated exactly as before (mirrors SYNC_JWT_SECRET).
+	sessionSecret := os.Getenv("POS_SESSION_SECRET")
+	sessionTTLStr := envOr("POS_SESSION_TTL", "16h")
 
 	storeTZ, err := time.LoadLocation(storeTZName)
 	if err != nil {
@@ -68,6 +79,11 @@ func main() {
 	voidWindow, err := time.ParseDuration(voidWindowStr)
 	if err != nil {
 		logger.Error("parse void window", "err", err, "value", voidWindowStr)
+		os.Exit(1)
+	}
+	sessionTTL, err := time.ParseDuration(sessionTTLStr)
+	if err != nil {
+		logger.Error("parse session ttl", "err", err, "value", sessionTTLStr)
 		os.Exit(1)
 	}
 
@@ -92,6 +108,8 @@ func main() {
 	taxEng := tax.NewEngine(taxStore)
 	itemStore := items.NewStore(sqlDB, taxStore)
 	refStore := refunds.NewStore(sqlDB, storeTZ)
+	userStore := users.NewStore(sqlDB)
+	deviceStore := devices.NewStore(sqlDB)
 	syn := syncstate.NewStore(sqlDB)
 	clk, err := clock.New(ctx, syn)
 	if err != nil {
@@ -193,6 +211,35 @@ func main() {
 		os.Exit(1)
 	}
 
+	// AuthService wiring (docs/store-server-auth-contract.md). Only when a
+	// session secret is configured: build the HS256 issuer + verifier, the
+	// AuthService handler, and a PERMISSIVE interceptor (verifies a token if
+	// present, allows its absence) so the existing desktop keeps working
+	// until it learns to log in. Unset secret → auth OFF (nil handler +
+	// interceptor), server runs unauthenticated as before.
+	var authHandler *api.AuthHandler
+	var authInterceptor connect.Interceptor
+	if sessionSecret != "" {
+		issuer, err := auth.NewIssuer(sessionSecret, sessionTTL)
+		if err != nil {
+			logger.Error("init auth issuer", "err", err)
+			os.Exit(1)
+		}
+		verifier, err := auth.NewVerifier(sessionSecret)
+		if err != nil {
+			logger.Error("init auth verifier", "err", err)
+			os.Exit(1)
+		}
+		authHandler = api.NewAuthHandler(userStore, deviceStore, issuer, tenantID, storeID,
+			logger.With("component", "auth"))
+		// PERMISSIVE for now. POS_REQUIRE_AUTH flip (require=true) lands with
+		// the desktop auth slice (contract §6 step 3).
+		authInterceptor = api.NewAuthInterceptor(verifier, false, logger.With("component", "auth"))
+		logger.Info("auth: AuthService enabled (permissive)", "session_ttl", sessionTTL.String())
+	} else {
+		logger.Warn("POS_SESSION_SECRET not set — AuthService disabled, server runs unauthenticated")
+	}
+
 	// Connect-RPC API surface. Mounted on a loopback socket so the local
 	// desktop client (Phase 2 Dart codegen) can call SaleService /
 	// RefundService / TaxAdminService over HTTP/Connect without going
@@ -205,6 +252,8 @@ func main() {
 		api.NewInventoryHandler(inv, itemStore, tenantID),
 		api.NewReservationHandler(reservationSvc),
 		eventsHandler,
+		authHandler,
+		authInterceptor,
 	)
 	api.MountReadyz(mux, func(probeCtx context.Context) error {
 		c, cancel := context.WithTimeout(probeCtx, 2*time.Second)
@@ -225,6 +274,7 @@ func main() {
 		"db_path", dbPath,
 		"cloud_url", cloudURL,
 		"tenant", tenantID,
+		"store", storeID,
 		"node", nodeID,
 		"store_tz", storeTZ.String(),
 		"void_window", voidWindow.String(),

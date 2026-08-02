@@ -69,7 +69,8 @@ class InventoryController extends _$InventoryController {
   Future<InventoryView> _fetch() async {
     final client = InventoryServiceClient(ref.read(transportProvider));
     final resp = await client.listOnHand(
-      ListOnHandRequest(storeId: StoreId(value: kStoreId)),
+      ListOnHandRequest(
+          storeId: StoreId(value: ref.read(terminalConfigProvider).storeId)),
     );
     return InventoryView(
       rows: resp.rows.map((r) => InventoryRow(row: r)).toList(growable: false),

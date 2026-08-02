@@ -24,11 +24,14 @@ part 'transport.g.dart';
 
 @Riverpod(keepAlive: true)
 connect.Transport transport(TransportRef ref) {
+  // Server URL comes from the config seam (config.dart) so provisioning can
+  // later swap it without touching this provider.
+  final cfg = ref.watch(terminalConfigProvider);
   // dart:io HttpClient → connectrpc HttpClient adapter. HTTP/1.1 is
   // fine for unary Connect calls; we'll revisit when streaming lands.
   final httpClient = conio.createHttpClient(HttpClient());
   return cproto.Transport(
-    baseUrl: kLocalServerUrl,
+    baseUrl: cfg.serverUrl,
     codec: const cprotobuf.ProtoCodec(),
     httpClient: httpClient,
   );

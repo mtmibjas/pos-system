@@ -97,12 +97,12 @@ abstract class RealtimeChannel {
   Future<void> close();
 }
 
-/// Default URL derivation: swap http://→ws:// (and https→wss) on the
-/// configured local server, then append the events-stream path. Kept
-/// here (not in config.dart) because the path itself belongs to the
-/// realtime feature.
-String defaultRealtimeUrl() {
-  var url = kLocalServerUrl;
+/// URL derivation: swap http://→ws:// (and https→wss) on the given server
+/// URL, then append the events-stream path. Takes the server URL as an
+/// argument (sourced from the config seam) — the path itself stays here
+/// because it belongs to the realtime feature.
+String realtimeUrlFromServer(String serverUrl) {
+  var url = serverUrl;
   if (url.startsWith('http://')) {
     url = 'ws://${url.substring('http://'.length)}';
   } else if (url.startsWith('https://')) {
@@ -116,10 +116,10 @@ String defaultRealtimeUrl() {
 /// its own reconnect loop with exponential backoff (1s → 30s capped).
 class IoRealtimeChannel implements RealtimeChannel {
   IoRealtimeChannel({
-    String? url,
+    required String url,
     Duration initialBackoff = const Duration(seconds: 1),
     Duration maxBackoff = const Duration(seconds: 30),
-  })  : _url = url ?? defaultRealtimeUrl(),
+  })  : _url = url,
         _initialBackoff = initialBackoff,
         _maxBackoff = maxBackoff {
     _runLoop();
@@ -223,7 +223,9 @@ class IoRealtimeChannel implements RealtimeChannel {
 /// the ProviderContainer is torn down (app exit).
 @Riverpod(keepAlive: true)
 RealtimeChannel realtimeChannel(RealtimeChannelRef ref) {
-  final ch = IoRealtimeChannel();
+  // Server URL comes from the config seam; derive the ws:// events-stream URL.
+  final cfg = ref.watch(terminalConfigProvider);
+  final ch = IoRealtimeChannel(url: realtimeUrlFromServer(cfg.serverUrl));
   ref.onDispose(() => ch.close());
   return ch;
 }

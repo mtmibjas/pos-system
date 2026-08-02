@@ -73,12 +73,13 @@ class ReservationsController extends _$ReservationsController {
   /// should not advance its own counter on failure.
   Future<void> reserveOne(String sku) async {
     final client = ReservationServiceClient(ref.read(transportProvider));
+    final cfg = ref.read(terminalConfigProvider);
     final id = _uuid.v4();
     await client.reserve(ReserveRequest(
       reservationId: id,
       sku: sku,
-      storeId: StoreId(value: kStoreId),
-      counterId: CounterId(value: kCounterId),
+      storeId: StoreId(value: cfg.storeId),
+      counterId: CounterId(value: cfg.counterId),
       quantity: Int64(1),
     ));
     final cur = List<String>.from(state[sku] ?? const <String>[])..add(id);

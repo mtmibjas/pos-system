@@ -7,7 +7,7 @@ part of 'inventory_controller.dart';
 // **************************************************************************
 
 String _$inventoryControllerHash() =>
-    r'773616cd21ff94af65b65a06ed5135a8d5a9edb3';
+    r'6a6d13755e4db0f3b8b80421eb85013951b08acc';
 
 /// See also [InventoryController].
 @ProviderFor(InventoryController)

@@ -14,6 +14,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../config.dart';
 import '../../core/transport.dart';
+import '../auth/session_controller.dart';
 
 part 'void_controller.g.dart';
 
@@ -34,12 +35,13 @@ class VoidController extends _$VoidController {
 
   Future<VoidSaleResponse> _submit(String saleId, String reason) async {
     final client = RefundServiceClient(ref.read(transportProvider));
+    final cfg = ref.read(terminalConfigProvider);
     final req = VoidSaleRequest(
       voidId: _uuid.v4(),
       saleId: saleId,
-      storeId: StoreId(value: kStoreId),
-      counterId: CounterId(value: kCounterId),
-      cashierId: UserId(value: kCashierId),
+      storeId: StoreId(value: cfg.storeId),
+      counterId: CounterId(value: cfg.counterId),
+      cashierId: UserId(value: ref.read(cashierIdProvider)),
       reason: reason,
       occurredAt: Timestamp.fromDateTime(DateTime.now().toUtc()),
     );

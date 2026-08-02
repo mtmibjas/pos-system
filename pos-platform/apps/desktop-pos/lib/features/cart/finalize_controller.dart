@@ -12,17 +12,15 @@
 /// construct a RefundSale request (per-tender original_payment_id refs).
 library;
 
-import 'package:fixnum/fixnum.dart';
 import 'package:flutter/foundation.dart' show immutable;
-import 'package:pos_sdk/gen/google/protobuf/timestamp.pb.dart';
 import 'package:pos_sdk/gen/pos/v1/common.pb.dart';
-import 'package:pos_sdk/gen/pos/v1/sale_service.connect.client.dart';
 import 'package:pos_sdk/gen/pos/v1/sale_service.pb.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../config.dart';
-import '../../core/transport.dart';
+import '../../data/sale_repository.dart';
+import '../auth/session_controller.dart';
 import '../reservations/reservations_controller.dart';
 import 'cart_controller.dart';
 
@@ -99,7 +97,8 @@ class FinalizeController extends _$FinalizeController {
     TenderMethod method,
     Money amount,
   ) async {
-    final client = SaleServiceClient(ref.read(transportProvider));
+    final repo = ref.read(saleRepositoryProvider);
+    final cfg = ref.read(terminalConfigProvider);
     final reservations =
         ref.read(reservationsControllerProvider.notifier);
     final saleId = _uuid.v4();
@@ -118,35 +117,34 @@ class FinalizeController extends _$FinalizeController {
     // holds atomically as part of the sale commit (slice 4.3). Sale-
     // lookup flows that re-load a finalized record into Finalize won't
     // have any active reservations; allReservationIds() returns [] then.
-    final reservationIds = reservations.allReservationIds();
-    final req = FinalizeRequest(
+    final input = FinalizeInput(
       saleId: saleId,
-      storeId: StoreId(value: kStoreId),
-      counterId: CounterId(value: kCounterId),
-      cashierId: UserId(value: kCashierId),
+      storeId: cfg.storeId,
+      counterId: cfg.counterId,
+      cashierId: ref.read(cashierIdProvider),
       lines: cart.lines
-          .map((l) => FinalizeSaleLine(
-                lineId: lineIds[l.sku],
+          .map((l) => SaleLineInput(
+                lineId: lineIds[l.sku]!,
                 sku: l.sku,
                 description: l.description,
-                quantity: Int64(l.quantity),
+                quantity: l.quantity,
                 unitPrice: l.unitPrice,
                 lineTotal: l.lineTotal,
                 taxCategoryId: l.taxCategoryId,
               ))
           .toList(growable: false),
       tenders: [
-        FinalizeSaleTender(
+        SaleTenderInput(
           paymentId: tender.paymentId,
           method: tender.method.wireName,
           amount: tender.amount,
         ),
       ],
-      reservationIds: reservationIds,
-      // subtotal/taxTotal/grandTotal omitted → zero Money → engine fills.
-      occurredAt: Timestamp.fromDateTime(DateTime.now().toUtc()),
+      reservationIds: reservations.allReservationIds(),
+      // subtotal/taxTotal/grandTotal omitted → server tax engine fills them.
+      occurredAt: DateTime.now(),
     );
-    final resp = await client.finalize(req);
+    final resp = await repo.finalize(input);
     // Server consumed the reservations as part of the commit; drop the
     // local ledger without calling Release (those rows are gone).
     reservations.clearAfterFinalize();

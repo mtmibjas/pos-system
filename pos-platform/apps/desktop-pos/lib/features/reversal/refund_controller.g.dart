@@ -6,7 +6,7 @@ part of 'refund_controller.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$refundControllerHash() => r'ab1a1b97b98bc40a8d41614473c4672417ade259';
+String _$refundControllerHash() => r'ebdc72ea89ac58745b5bf0d5d53b0e19b6f563da';
 
 /// See also [RefundController].
 @ProviderFor(RefundController)

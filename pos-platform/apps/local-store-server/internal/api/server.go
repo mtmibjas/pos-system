@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 
+	"connectrpc.com/connect"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 
@@ -12,6 +13,12 @@ import (
 
 // NewMux returns an *http.ServeMux with the POS Connect services
 // and a /healthz endpoint mounted.
+//
+// authHandler (AuthService) and interceptor are OPTIONAL: when the session
+// secret is unset (POS_SESSION_SECRET), main.go passes nil for both and the
+// server runs unauthenticated exactly as before. When set, AuthService is
+// mounted and the interceptor wraps EVERY service (including AuthService,
+// whose login/register procedures the interceptor exempts).
 //
 // Wrap the returned mux with h2c so plaintext HTTP/2 works (clients can
 // upgrade without TLS) — Connect's gRPC mode needs HTTP/2 framing, and the
@@ -25,17 +32,28 @@ func NewMux(
 	inv *InventoryHandler,
 	reservation *ReservationHandler,
 	events *EventsStreamHandler,
+	authHandler *AuthHandler,
+	interceptor connect.Interceptor,
 ) *http.ServeMux {
 	mux := http.NewServeMux()
 
+	// Apply the auth interceptor (when present) uniformly to every service.
+	var opts []connect.HandlerOption
+	if interceptor != nil {
+		opts = append(opts, connect.WithInterceptors(interceptor))
+	}
+
 	// Connect handlers.
-	mux.Handle(posv1connect.NewSaleServiceHandler(sale))
-	mux.Handle(posv1connect.NewRefundServiceHandler(refund))
-	mux.Handle(posv1connect.NewTaxAdminServiceHandler(taxAdmin))
-	mux.Handle(posv1connect.NewItemServiceHandler(item))
-	mux.Handle(posv1connect.NewInventoryServiceHandler(inv))
+	mux.Handle(posv1connect.NewSaleServiceHandler(sale, opts...))
+	mux.Handle(posv1connect.NewRefundServiceHandler(refund, opts...))
+	mux.Handle(posv1connect.NewTaxAdminServiceHandler(taxAdmin, opts...))
+	mux.Handle(posv1connect.NewItemServiceHandler(item, opts...))
+	mux.Handle(posv1connect.NewInventoryServiceHandler(inv, opts...))
 	if reservation != nil {
-		mux.Handle(posv1connect.NewReservationServiceHandler(reservation))
+		mux.Handle(posv1connect.NewReservationServiceHandler(reservation, opts...))
+	}
+	if authHandler != nil {
+		mux.Handle(posv1connect.NewAuthServiceHandler(authHandler, opts...))
 	}
 
 	// WebSocket fan-out for multi-counter realtime (Phase 4 slice 4.1).

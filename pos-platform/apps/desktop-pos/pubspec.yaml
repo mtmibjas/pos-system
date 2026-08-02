@@ -25,6 +25,10 @@ dependencies:
   # Int64 for Money.units; protobuf re-exports fixnum but our app code
   # uses it directly when constructing Money client-side.
   fixnum: ^1.1.0
+  # Secure, OS-keystore-backed storage for the session token + device
+  # credential (docs/store-server-auth-contract.md §4.2). Windows
+  # Credential Manager / macOS Keychain.
+  flutter_secure_storage: ^9.2.2
 
 dev_dependencies:
   flutter_test:

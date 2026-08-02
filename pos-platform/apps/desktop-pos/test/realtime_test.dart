@@ -10,9 +10,15 @@ import 'package:desktop_pos/core/realtime.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('defaultRealtimeUrl swaps http→ws and appends path', () {
-    final url = defaultRealtimeUrl();
+  test('realtimeUrlFromServer swaps http→ws and appends path', () {
+    final url = realtimeUrlFromServer('http://127.0.0.1:8081');
     expect(url, startsWith('ws://'));
+    expect(url, endsWith('/v1/events/stream'));
+  });
+
+  test('realtimeUrlFromServer swaps https→wss', () {
+    final url = realtimeUrlFromServer('https://shop.example:8443');
+    expect(url, startsWith('wss://'));
     expect(url, endsWith('/v1/events/stream'));
   });
 

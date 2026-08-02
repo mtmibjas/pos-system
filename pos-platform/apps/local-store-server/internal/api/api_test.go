@@ -123,6 +123,8 @@ func newTestServer(t *testing.T) *testServer {
 		api.NewInventoryHandler(inv, itemStore, testTenant),
 		api.NewReservationHandler(reservationSvc),
 		eventsHandler,
+		nil, // AuthService: off in this fixture
+		nil, // interceptor: none
 	)
 	srv := httptest.NewServer(api.H2CHandler(mux))
 	t.Cleanup(srv.Close)

@@ -2,8 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Debug only: App Sandbox is OFF so flutter_secure_storage can use the
+	     login Keychain under ad-hoc "Sign to Run Locally" signing (no Apple
+	     dev team needed). Release.entitlements keeps the sandbox + a proper
+	     keychain-access-group for when distribution signing is set up. -->
 	<key>com.apple.security.app-sandbox</key>
-	<true/>
+	<false/>
 	<key>com.apple.security.cs.allow-jit</key>
 	<true/>
 	<key>com.apple.security.network.server</key>

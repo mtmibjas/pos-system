@@ -6,7 +6,7 @@ part of 'void_controller.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$voidControllerHash() => r'd53c44cc014278a95f7593852f70b17b37aaa720';
+String _$voidControllerHash() => r'156fb8ffb9d641ca588ae483fe9fa9ea1957fa93';
 
 /// See also [VoidController].
 @ProviderFor(VoidController)

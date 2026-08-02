@@ -8,7 +8,6 @@ library;
 
 import 'package:connectrpc/connect.dart' as connect;
 import 'package:connectrpc/test.dart' as ctest;
-import 'package:desktop_pos/config.dart';
 import 'package:desktop_pos/core/transport.dart';
 import 'package:desktop_pos/features/cart/cart_controller.dart';
 import 'package:desktop_pos/features/cart/finalize_controller.dart';
@@ -100,9 +99,10 @@ void main() {
     expect(captured!.refundId, hasLength(36));
     expect(captured!.saleId, 'sale-1');
     expect(captured!.reason, 'customer changed mind');
-    expect(captured!.storeId.value, kStoreId);
-    expect(captured!.counterId.value, kCounterId);
-    expect(captured!.cashierId.value, kCashierId);
+    // Default TerminalConfig + cashierId provider values (the config seam).
+    expect(captured!.storeId.value, 'store-1');
+    expect(captured!.counterId.value, 'counter-1');
+    expect(captured!.cashierId.value, 'cashier-1');
     expect(captured!.lines, hasLength(2));
     expect(captured!.lines[0].saleLineId, 'line-A');
     expect(captured!.lines[0].sku, 'A');

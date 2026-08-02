@@ -1,0 +1,98 @@
+syntax = "proto3";
+
+package pos.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/mibjas/pos-platform/packages/sdk-go/gen/pos/v1;posv1";
+
+// AuthService is the desktop terminal's door into the local store server.
+// See docs/store-server-auth-contract.md for the full design.
+//
+// Two auth acts, two tiers of credential:
+//   - RegisterDevice (manager/owner-gated): binds a terminal to a
+//     server-assigned counter and returns a long-lived, revocable DEVICE
+//     credential (an opaque secret; the server stores only its bcrypt hash).
+//   - Login (cashier or manager, on a registered device): exchanges the
+//     device credential + user credentials for a short-lived SESSION token
+//     (HS256 JWT) that rides Authorization: Bearer on every subsequent
+//     Connect call and carries who-sold-it + where.
+//
+// Both procedures here are UNAUTHENTICATED (the door, not the room): the
+// auth interceptor exempts them. Every OTHER mutating procedure requires a
+// valid session token, and the server derives store_id/counter_id/cashier_id
+// from the verified claims rather than trusting request-body fields.
+//
+// Offline-first: this runs entirely against the store server's LOCAL users
+// + devices tables, so login works with the cloud unreachable. Users are
+// mirrored cloud->store (catalog-pull analogue); the store re-authenticates
+// against the local mirror.
+//
+// Passwords/secrets cross the wire here. Loopback topology needs no TLS;
+// for a separate-LAN-box, LAN-hop TLS is a separate, deferred concern that
+// does not change this contract.
+service AuthService {
+  // RegisterDevice provisions THIS terminal. Manager authenticates inline;
+  // requires the `owner` role. Returns the device_secret exactly once.
+  rpc RegisterDevice(RegisterDeviceRequest) returns (RegisterDeviceResponse);
+
+  // Login authenticates a user on an already-registered device and mints a
+  // session token. No refresh token by design — re-login at expiry.
+  rpc Login(LoginRequest) returns (LoginResponse);
+}
+
+// RegisterDeviceRequest carries the manager's credentials (verified inline,
+// never logged) plus how to place the new device.
+//
+// counter_id is SERVER-ASSIGNED (sequential per store) — the manager does
+// not pick it. For a till swap, set replace_counter_id to re-provision an
+// existing counter: the server revokes the old device and reuses that
+// counter_id so shift reports/audit stay continuous across the swap.
+message RegisterDeviceRequest {
+  string manager_username = 1;
+  string manager_password = 2;     // verified via bcrypt; never logged
+  string device_name = 3;          // human label, e.g. "Front till"
+  string replace_counter_id = 4;   // OPTIONAL: re-provision this counter.
+                                    // Empty = assign a brand-new counter.
+}
+
+// RegisterDeviceResponse returns the device identity + the one-time secret.
+// The terminal persists device_id + device_secret in flutter_secure_storage;
+// the server keeps only the bcrypt hash of the secret, so it cannot be
+// recovered server-side — losing it means re-registering.
+message RegisterDeviceResponse {
+  string device_id = 1;            // server-minted UUID
+  string device_secret = 2;        // returned ONCE; store only the hash
+  string store_id = 3;
+  string counter_id = 4;           // server-assigned (new) or reused (replace)
+}
+
+// LoginRequest pairs the device credential (proves "a provisioned terminal")
+// with the user credential (proves "who is at the till"). Both are checked;
+// failure of either returns the same generic Unauthenticated to prevent
+// device/user enumeration.
+message LoginRequest {
+  string device_id = 1;
+  string device_secret = 2;        // matched against the devices table hash
+  string username = 3;
+  string password = 4;             // verified via bcrypt; never logged
+}
+
+// LoginResponse carries the session token plus the context the client needs
+// to render (display name, roles) and to label work. Note store_id and
+// counter_id come from the DEVICE record, not from anything the client sent
+// — they, the cashier identity (sub=username), and roles are also embedded
+// as signed claims inside access_token, which is the authoritative copy the
+// server trusts on subsequent calls.
+message LoginResponse {
+  string access_token = 1;                    // HS256 session JWT
+  google.protobuf.Timestamp expires_at = 2;   // 16h default (POS_SESSION_TTL)
+  string tenant_id = 3;
+  repeated string roles = 4;                  // e.g. ["owner"] or ["cashier"]
+  // From users.display_name; falls back to username when unset. Display-only
+  // (e.g. "Logged in as …") — never an identity the server trusts; the
+  // authoritative cashier identity is sub=username inside access_token.
+  string user_display_name = 5;
+  string store_id = 6;
+  string counter_id = 7;                      // from the device record
+}

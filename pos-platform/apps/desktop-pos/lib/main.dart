@@ -1,14 +1,15 @@
-/// Desktop POS — macOS Flutter client entrypoint.
+/// Desktop POS — Flutter client entrypoint (Windows + macOS).
 ///
-/// Phase 2 Slice 2.8 scope: ProviderScope + MaterialApp + ItemPicker,
-/// which lists items from the local-store-server on 127.0.0.1:8081
-/// via ItemService.ListItems. Cart + finalize land in Slices 2.9–2.10.
+/// Boots into the [AuthGate]: an unprovisioned terminal sees the
+/// provisioning screen, a provisioned-but-logged-out terminal sees login,
+/// and an authenticated terminal sees the role-aware [NavShell].
 library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'features/items/item_picker_screen.dart';
+import 'features/auth/auth_gate.dart';
+import 'features/shell/nav_shell.dart';
 
 void main() {
   runApp(const ProviderScope(child: PosApp()));
@@ -25,7 +26,7 @@ class PosApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
         useMaterial3: true,
       ),
-      home: const ItemPickerScreen(),
+      home: AuthGate(child: NavShell()),
     );
   }
 }

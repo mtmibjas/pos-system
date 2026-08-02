@@ -17,6 +17,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../config.dart';
 import '../../core/transport.dart';
+import '../auth/session_controller.dart';
 import '../cart/cart_controller.dart';
 import '../cart/finalize_controller.dart';
 
@@ -83,12 +84,13 @@ class RefundController extends _$RefundController {
             ))
         .toList(growable: false);
 
+    final cfg = ref.read(terminalConfigProvider);
     final req = RefundSaleRequest(
       refundId: _uuid.v4(),
       saleId: record.saleId,
-      storeId: StoreId(value: kStoreId),
-      counterId: CounterId(value: kCounterId),
-      cashierId: UserId(value: kCashierId),
+      storeId: StoreId(value: cfg.storeId),
+      counterId: CounterId(value: cfg.counterId),
+      cashierId: UserId(value: ref.read(cashierIdProvider)),
       reason: reason,
       occurredAt: Timestamp.fromDateTime(DateTime.now().toUtc()),
       lines: lines,

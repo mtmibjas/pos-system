@@ -6,7 +6,6 @@ library;
 
 import 'package:connectrpc/connect.dart' as connect;
 import 'package:connectrpc/test.dart' as ctest;
-import 'package:desktop_pos/config.dart';
 import 'package:desktop_pos/core/transport.dart';
 import 'package:desktop_pos/features/inventory/inventory_controller.dart';
 import 'package:fixnum/fixnum.dart';
@@ -42,7 +41,7 @@ void main() {
     expect(view.rows.first.row.sku, 'A');
     expect(view.rows.first.row.onHand.toInt(), 7);
     expect(view.rows.first.available, isNull);
-    expect(captured!.storeId.value, kStoreId);
+    expect(captured!.storeId.value, 'store-1'); // default TerminalConfig
   });
 
   test('error surfaces as AsyncError and refresh recovers', () async {

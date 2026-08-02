@@ -6,7 +6,7 @@ part of 'realtime.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$realtimeChannelHash() => r'c3d86673cf896cb0dac5395f93559fca741be33b';
+String _$realtimeChannelHash() => r'778209020623dab8c3c98cb3351da01698ebcead';
 
 /// keepAlive so a single socket survives navigation. Disposed only when
 /// the ProviderContainer is torn down (app exit).

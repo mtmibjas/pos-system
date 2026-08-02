@@ -7,7 +7,7 @@ part of 'finalize_controller.dart';
 // **************************************************************************
 
 String _$finalizeControllerHash() =>
-    r'841996c4f8ec5d21d9f3e0e09c7920dc5c44a285';
+    r'af73f122e72b00d93082e438a21ffd1e8530c1af';
 
 /// See also [FinalizeController].
 @ProviderFor(FinalizeController)

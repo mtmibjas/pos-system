@@ -7,7 +7,7 @@ part of 'reservations_controller.dart';
 // **************************************************************************
 
 String _$reservationsControllerHash() =>
-    r'20d9ded47423d6a5c74604ac4e647620a4494227';
+    r'165c51ada3b60b8ff616c619767655cd04e60b36';
 
 /// See also [ReservationsController].
 @ProviderFor(ReservationsController)
