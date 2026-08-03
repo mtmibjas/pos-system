@@ -19,21 +19,24 @@ import 'placeholder_screen.dart';
 final List<FeatureModule> kModules = [
   FeatureModule(
     id: 'sell',
-    label: 'Sell',
+    label: 'Counter (POS)',
+    group: 'Sell',
     icon: Icons.point_of_sale,
     visible: (p) => p.canSell,
     builder: (_) => const ItemPickerScreen(),
   ),
   FeatureModule(
     id: 'sales',
-    label: 'Sales',
+    label: 'Sales register',
+    group: 'Sell',
     icon: Icons.receipt_long,
     visible: (p) => p.canSell, // lookup → refund/void
     builder: (_) => const SaleLookupScreen(),
   ),
   FeatureModule(
     id: 'inventory',
-    label: 'Inventory',
+    label: 'Stock',
+    group: 'Operations',
     icon: Icons.inventory_2,
     visible: (p) => p.canManageItems,
     builder: (_) => const InventoryScreen(),
@@ -41,6 +44,7 @@ final List<FeatureModule> kModules = [
   FeatureModule(
     id: 'parties',
     label: 'Parties',
+    group: 'Masters',
     icon: Icons.people_alt,
     visible: (p) => p.canSell, // udhaar/collections — cashier-facing too
     builder: (_) => const PlaceholderScreen(title: 'Parties', phase: 'P8'),
@@ -48,6 +52,7 @@ final List<FeatureModule> kModules = [
   FeatureModule(
     id: 'purchases',
     label: 'Purchases',
+    group: 'Operations',
     icon: Icons.local_shipping,
     visible: (p) => p.isOwner,
     builder: (_) => const PlaceholderScreen(title: 'Purchases', phase: 'P9'),
@@ -55,6 +60,7 @@ final List<FeatureModule> kModules = [
   FeatureModule(
     id: 'reports',
     label: 'Reports',
+    group: 'Insights',
     icon: Icons.bar_chart,
     visible: (p) => p.canViewReports,
     builder: (_) => const PlaceholderScreen(title: 'Reports', phase: 'a later phase'),
@@ -62,6 +68,7 @@ final List<FeatureModule> kModules = [
   FeatureModule(
     id: 'cashiers',
     label: 'Cashiers',
+    group: 'Operations',
     icon: Icons.badge,
     visible: (p) => p.canManageCashiers,
     builder: (_) =>
@@ -70,6 +77,7 @@ final List<FeatureModule> kModules = [
   FeatureModule(
     id: 'settings',
     label: 'Settings',
+    group: '',
     icon: Icons.settings,
     visible: (p) => true, // terminal/provisioning/printer/about
     builder: (_) => const PlaceholderScreen(title: 'Settings', phase: 'a later phase'),

@@ -45,3 +45,18 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  # Bundled offline-first (no runtime google_fonts fetch — the till must
+  # theme correctly with no network). See docs/desktop-pos-ui-design.md §5.
+  fonts:
+    # Manrope is a variable font; Flutter maps TextStyle.fontWeight through
+    # its `wght` axis, so a single file covers 500/700/800.
+    - family: Manrope
+      fonts:
+        - asset: assets/fonts/Manrope-var.ttf
+    - family: DM Mono
+      fonts:
+        - asset: assets/fonts/DMMono-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/DMMono-Medium.ttf
+          weight: 500

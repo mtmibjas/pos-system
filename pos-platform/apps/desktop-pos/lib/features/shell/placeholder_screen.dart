@@ -1,10 +1,14 @@
 /// Placeholder for module slots that the shell anticipates but that ship in
 /// a later phase (Parties P8, Purchases P9, Reports, cashier mgmt, settings).
 /// The slot exists in the nav now so the shell's structure is settled before
-/// the features land.
+/// the features land. Restyled to the Dostop design so it reads as an
+/// intentional "coming soon", not a broken screen.
 library;
 
 import 'package:flutter/material.dart';
+
+import '../../ui/tokens.dart';
+import '../../ui/widgets.dart';
 
 class PlaceholderScreen extends StatelessWidget {
   const PlaceholderScreen({super.key, required this.title, required this.phase});
@@ -18,18 +22,19 @@ class PlaceholderScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.construction,
-                size: 48, color: Theme.of(context).disabledColor),
-            const SizedBox(height: 12),
-            Text('$title — coming in $phase',
-                style: Theme.of(context).textTheme.titleMedium),
-          ],
-        ),
+      backgroundColor: DostopColors.canvas,
+      body: Column(
+        children: [
+          DostopScreenHeader(title: title, subtitle: 'Planned · $phase'),
+          Expanded(
+            child: DostopEmptyState(
+              icon: Icons.construction_outlined,
+              title: '$title is coming in $phase',
+              detail: 'This module is designed and reserved in the shell — '
+                  'the feature build lands in its phase.',
+            ),
+          ),
+        ],
       ),
     );
   }

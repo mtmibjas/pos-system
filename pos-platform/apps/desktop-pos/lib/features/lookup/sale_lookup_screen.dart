@@ -16,6 +16,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pos_sdk/gen/pos/v1/sale_service.pb.dart';
 
+import '../../ui/theme.dart';
+import '../../ui/tokens.dart';
+import '../../ui/widgets.dart';
 import '../cart/cart_controller.dart';
 import '../cart/finalize_controller.dart';
 import '../cart/receipt_screen.dart';
@@ -51,39 +54,81 @@ class _SaleLookupScreenState extends ConsumerState<SaleLookupScreen> {
     });
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Find sale')),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextField(
-              controller: _ctrl,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Invoice # or sale UUID',
-                hintText: 'INV-2026-000001',
-                border: OutlineInputBorder(),
+      backgroundColor: DostopColors.canvas,
+      body: Column(
+        children: [
+          const DostopScreenHeader(
+            title: 'Sales register',
+            subtitle: 'Find a sale to reprint, void or refund',
+          ),
+          Expanded(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 460),
+                child: Container(
+                  margin: const EdgeInsets.all(24),
+                  padding: const EdgeInsets.all(22),
+                  decoration: BoxDecoration(
+                    color: DostopColors.panel,
+                    borderRadius: BorderRadius.circular(DostopRadius.card),
+                    border: Border.all(color: DostopColors.slate200),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text('Look up a sale', style: DostopText.h1),
+                      const SizedBox(height: 4),
+                      const Text('Enter an invoice number or paste a sale UUID.',
+                          style: DostopText.label),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _ctrl,
+                        autofocus: true,
+                        decoration: const InputDecoration(
+                          hintText: 'INV-2026-000001',
+                          prefixIcon: Icon(Icons.receipt_long_outlined,
+                              size: 18, color: DostopColors.slate400),
+                        ),
+                        onChanged: (v) => setState(() => _val = v.trim()),
+                        onSubmitted: (_) => _submit(),
+                      ),
+                      const SizedBox(height: 14),
+                      SizedBox(
+                        height: 46,
+                        child: FilledButton.icon(
+                          onPressed:
+                              state.isLoading || _val.isEmpty ? null : _submit,
+                          icon: const Icon(Icons.search, size: 18),
+                          label: const Text('Look up sale'),
+                        ),
+                      ),
+                      if (state.isLoading) ...[
+                        const SizedBox(height: 20),
+                        const Center(
+                            child:
+                                CircularProgressIndicator(strokeWidth: 2.5)),
+                      ],
+                      if (state.hasError) ...[
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: DostopColors.stockOutBg,
+                            borderRadius: BorderRadius.circular(9),
+                          ),
+                          child: SelectableText('Lookup failed: ${state.error}',
+                              style: DostopText.label
+                                  .copyWith(color: DostopColors.danger)),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ),
-              onChanged: (v) => setState(() => _val = v.trim()),
-              onSubmitted: (_) => _submit(),
             ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: state.isLoading || _val.isEmpty ? null : _submit,
-              icon: const Icon(Icons.search),
-              label: const Text('Lookup'),
-            ),
-            const SizedBox(height: 24),
-            if (state.isLoading) const Center(child: CircularProgressIndicator()),
-            if (state.hasError)
-              SelectableText(
-                'Lookup failed: ${state.error}',
-                style:
-                    TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

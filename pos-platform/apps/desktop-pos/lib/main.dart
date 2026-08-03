@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'features/auth/auth_gate.dart';
 import 'features/shell/nav_shell.dart';
+import 'ui/theme.dart';
 
 void main() {
   runApp(const ProviderScope(child: PosApp()));
@@ -21,11 +22,9 @@ class PosApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'pos-platform',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
-        useMaterial3: true,
-      ),
+      title: 'Dostop POS',
+      debugShowCheckedModeBanner: false,
+      theme: buildDostopTheme(),
       home: AuthGate(child: NavShell()),
     );
   }

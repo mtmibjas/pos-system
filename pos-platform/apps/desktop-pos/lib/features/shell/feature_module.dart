@@ -19,6 +19,7 @@ class FeatureModule {
     required this.icon,
     required this.visible,
     required this.builder,
+    this.group = '',
   });
 
   final String id;
@@ -26,6 +27,11 @@ class FeatureModule {
   final IconData icon;
   final ModuleVisible visible;
   final WidgetBuilder builder;
+
+  /// Sidebar section heading this module sits under (e.g. 'Sell', 'Masters').
+  /// Empty = ungrouped. Matches the Dostop design nav groups
+  /// (docs/desktop-pos-ui-design.md §3).
+  final String group;
 }
 
 /// The modules a role policy may see, in registry order. Pure — unit-tested

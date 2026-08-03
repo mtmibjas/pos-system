@@ -81,7 +81,10 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Sign out'));
+      // The Dostop sidebar renders sign-out as an icon button (tooltip),
+      // not a text label — tap by tooltip; the behaviour under test is
+      // unchanged (session is cleared).
+      await tester.tap(find.byTooltip('Sign out'));
       await tester.pumpAndSettle();
       expect(await store.loadSession(), isNull);
     });
