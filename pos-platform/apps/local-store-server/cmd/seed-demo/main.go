@@ -22,6 +22,7 @@ import (
 	"os"
 
 	"github.com/mibjas/pos-platform/apps/local-store-server/internal/db"
+	"github.com/mibjas/pos-platform/apps/local-store-server/internal/expenses"
 	"github.com/mibjas/pos-platform/apps/local-store-server/internal/items"
 	"github.com/mibjas/pos-platform/apps/local-store-server/internal/payments"
 	"github.com/mibjas/pos-platform/apps/local-store-server/internal/tax"
@@ -33,6 +34,7 @@ func main() {
 
 	dbPath := envOr("POS_LOCAL_DB", "pos-local.db")
 	tenantID := envOr("POS_TENANT_ID", "tenant-A")
+	storeID := envOr("POS_STORE_ID", "store-1")
 
 	sqlDB, err := db.Open(ctx, db.Config{Path: dbPath})
 	if err != nil {
@@ -48,6 +50,7 @@ func main() {
 
 	taxStore := tax.NewStore(sqlDB)
 	itemStore := items.NewStore(sqlDB, taxStore)
+	expenseStore := expenses.NewStore(sqlDB)
 
 	if err := seedTax(ctx, taxStore, tenantID); err != nil {
 		logger.Error("seed tax", "err", err)
@@ -58,12 +61,19 @@ func main() {
 		logger.Error("seed items", "err", err)
 		os.Exit(1)
 	}
+	seededExpenses, err := seedExpenses(ctx, expenseStore, tenantID, storeID)
+	if err != nil {
+		logger.Error("seed expenses", "err", err)
+		os.Exit(1)
+	}
 
 	logger.Info("seed complete",
 		"db_path", dbPath,
 		"tenant", tenantID,
+		"store", storeID,
 		"tax_category", "GST-18",
 		"items", seeded,
+		"expenses", seededExpenses,
 	)
 }
 
@@ -110,6 +120,41 @@ func seedItems(ctx context.Context, s *items.Store, tenantID string) (int, error
 		}
 	}
 	return len(demo), nil
+}
+
+// seedExpenses writes a short demo expense ledger for the Expenses
+// screen. Amounts are LKR (Sri Lanka), mirroring the prototype
+// /tmp/gl_app.js EXPENSES array. Stable IDs make re-runs idempotent
+// (the store's INSERT ... ON CONFLICT(id) upserts).
+func seedExpenses(ctx context.Context, s *expenses.Store, tenantID, storeID string) (int, error) {
+	demo := []expenses.Expense{
+		newExpense("exp-1", "2026-06-15", "Utilities", "CEB electricity — June", "Cash", 31500, 0),
+		newExpense("exp-2", "2026-06-14", "Rent", "Shop rent — June", "Bank", 145000, 0),
+		newExpense("exp-3", "2026-06-13", "Salaries", "Cashier wages — 1st half", "Bank", 118000, 0),
+		newExpense("exp-4", "2026-06-12", "Transport", "Lorry hire — Dambulla run", "Cash", 18000, 0),
+		newExpense("exp-5", "2026-06-11", "Packaging", "Carry bags · 5000 pcs", "LankaQR", 47200, 8496),
+		newExpense("exp-6", "2026-06-10", "Maintenance", "Chiller servicing", "Cash", 26000, 4680),
+	}
+	for i := range demo {
+		demo[i].TenantID = tenantID
+		demo[i].StoreID = storeID
+		if _, err := s.Create(ctx, demo[i]); err != nil {
+			return 0, err
+		}
+	}
+	return len(demo), nil
+}
+
+func newExpense(id, date, category, description, mode string, amtUnits, vatUnits int64) expenses.Expense {
+	return expenses.Expense{
+		ID:          id,
+		Date:        date,
+		Category:    category,
+		Description: description,
+		PaymentMode: mode,
+		Amount:      payments.Money{CurrencyCode: "LKR", Units: amtUnits},
+		VAT:         payments.Money{CurrencyCode: "LKR", Units: vatUnits},
+	}
 }
 
 func newItem(sku, name string, units int64, nanos int32) items.Item {

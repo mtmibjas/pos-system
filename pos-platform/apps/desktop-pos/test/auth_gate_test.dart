@@ -39,7 +39,11 @@ void main() {
   testWidgets('provisioned, no session → login screen', (tester) async {
     await tester.pumpWidget(_app(InMemoryCredentialStore(device: _device)));
     await tester.pumpAndSettle();
-    expect(find.widgetWithText(TextFormField, 'Username'), findsOneWidget);
+    // Login screen renders the Dostop sign-in card (field labels sit above
+    // the inputs in the design). Match the unique field labels ('Sign in'
+    // appears twice — heading + button).
+    expect(find.text('Username'), findsOneWidget);
+    expect(find.text('Password'), findsOneWidget);
   });
 
   testWidgets('authenticated → app', (tester) async {

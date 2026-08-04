@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package pos.v1;
+
+import "pos/v1/common.proto";
+
+option go_package = "github.com/mibjas/pos-platform/packages/sdk-go/gen/pos/v1;posv1";
+
+// ExpenseService is the operator-facing expense ledger surface. The
+// desktop client lists store expenses (rent, utilities, salaries, …) to
+// render the Expenses screen, and can record a new expense.
+//
+// Like ItemService and TaxAdminService, expense writes are NOT sync
+// events — they mutate the local store ledger directly. A cloud-side GL
+// projection may consume them later; until then, CreateExpense (and
+// cmd/seed-demo) are the only seed paths.
+service ExpenseService {
+  rpc ListExpenses(ListExpensesRequest) returns (ListExpensesResponse);
+  rpc CreateExpense(CreateExpenseRequest) returns (CreateExpenseResponse);
+}
+
+// Expense is one row in the store expense ledger. id is the primary key
+// (a server-assigned UUID). tenant_id / store_id are pinned from server
+// config on writes (ignored on the wire).
+//
+// date is a display-friendly YYYY-MM-DD string — the ledger only needs
+// it for grouping/reporting, not arithmetic. category and payment_mode
+// are free-form operator strings (e.g. "Utilities", "Cash"). amount is
+// the gross spend; vat is the input VAT paid (claimable), which MAY be
+// a zero Money when no VAT applies.
+message Expense {
+  string id = 1;
+  string tenant_id = 2;
+  string store_id = 3;
+  string date = 4;
+  string category = 5;
+  string description = 6;
+  string payment_mode = 7;
+  Money amount = 8;
+  Money vat = 9;
+  int64 created_at = 10;
+}
+
+// ListExpensesRequest has no pagination — a single store's monthly
+// expense list stays small enough to fetch in one shot. Add a
+// page_token field if/when that stops being true.
+message ListExpensesRequest {}
+
+message ListExpensesResponse {
+  repeated Expense expenses = 1;
+}
+
+message CreateExpenseRequest {
+  Expense expense = 1;
+}
+
+message CreateExpenseResponse {
+  Expense expense = 1;
+}

@@ -29,6 +29,7 @@ func NewMux(
 	refund *RefundHandler,
 	taxAdmin *TaxAdminHandler,
 	item *ItemHandler,
+	expense *ExpenseHandler,
 	inv *InventoryHandler,
 	reservation *ReservationHandler,
 	events *EventsStreamHandler,
@@ -48,6 +49,7 @@ func NewMux(
 	mux.Handle(posv1connect.NewRefundServiceHandler(refund, opts...))
 	mux.Handle(posv1connect.NewTaxAdminServiceHandler(taxAdmin, opts...))
 	mux.Handle(posv1connect.NewItemServiceHandler(item, opts...))
+	mux.Handle(posv1connect.NewExpenseServiceHandler(expense, opts...))
 	mux.Handle(posv1connect.NewInventoryServiceHandler(inv, opts...))
 	if reservation != nil {
 		mux.Handle(posv1connect.NewReservationServiceHandler(reservation, opts...))

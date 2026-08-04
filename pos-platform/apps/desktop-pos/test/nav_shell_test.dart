@@ -28,11 +28,11 @@ void main() {
       );
     });
 
-    test('cashier sees only sell/sales/parties/settings', () {
+    test('cashier sees only sell/invoice/sales/parties/settings', () {
       final ids = visibleModules(kModules, const RolePolicy(['cashier']))
           .map((m) => m.id)
           .toList();
-      expect(ids, ['sell', 'sales', 'parties', 'settings']); // registry order
+      expect(ids, ['sell', 'invoice', 'sales', 'parties', 'settings']); // registry order
       expect(ids, isNot(contains('inventory')));
       expect(ids, isNot(contains('purchases')));
       expect(ids, isNot(contains('cashiers')));
@@ -56,6 +56,8 @@ void main() {
 
     testWidgets('owner sees the owner-only destination + first module body',
         (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1280, 832));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(shellFor(_session(['owner'])));
       await tester.pumpAndSettle();
       expect(find.text('Alpha'), findsOneWidget);
@@ -66,6 +68,8 @@ void main() {
 
     testWidgets('cashier does not see the owner-only destination',
         (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1280, 832));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(shellFor(_session(['cashier'])));
       await tester.pumpAndSettle();
       expect(find.text('Alpha'), findsOneWidget);
@@ -74,6 +78,8 @@ void main() {
     });
 
     testWidgets('sign out clears the session', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1280, 832));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
       final store = InMemoryCredentialStore(session: _session(['owner']));
       await tester.pumpWidget(ProviderScope(
         overrides: [credentialStoreProvider.overrideWithValue(store)],

@@ -5,6 +5,7 @@ import (
 
 	"connectrpc.com/connect"
 
+	"github.com/mibjas/pos-platform/apps/local-store-server/internal/expenses"
 	"github.com/mibjas/pos-platform/apps/local-store-server/internal/inventory"
 	"github.com/mibjas/pos-platform/apps/local-store-server/internal/invoices"
 	"github.com/mibjas/pos-platform/apps/local-store-server/internal/items"
@@ -132,6 +133,12 @@ func toConnectErr(err error) error {
 	case errors.Is(err, items.ErrItemNotFound):
 		return connect.NewError(connect.CodeNotFound, err)
 	case errors.Is(err, items.ErrInvalidItem):
+		return connect.NewError(connect.CodeInvalidArgument, err)
+	}
+
+	// --- expenses sentinels ---
+	switch {
+	case errors.Is(err, expenses.ErrInvalidExpense):
 		return connect.NewError(connect.CodeInvalidArgument, err)
 	}
 

@@ -21,6 +21,7 @@ import (
 	"github.com/mibjas/pos-platform/apps/local-store-server/internal/api"
 	"github.com/mibjas/pos-platform/apps/local-store-server/internal/clock"
 	"github.com/mibjas/pos-platform/apps/local-store-server/internal/db"
+	"github.com/mibjas/pos-platform/apps/local-store-server/internal/expenses"
 	"github.com/mibjas/pos-platform/apps/local-store-server/internal/hub"
 	"github.com/mibjas/pos-platform/apps/local-store-server/internal/inventory"
 	"github.com/mibjas/pos-platform/apps/local-store-server/internal/invoices"
@@ -86,6 +87,7 @@ func newTestServer(t *testing.T) *testServer {
 	taxStore := tax.NewStore(sqlDB)
 	taxEng := tax.NewEngine(taxStore)
 	itemStore := items.NewStore(sqlDB, taxStore)
+	expenseStore := expenses.NewStore(sqlDB)
 	refStore := refunds.NewStore(sqlDB, time.UTC)
 
 	eventHub := hub.New()
@@ -120,6 +122,7 @@ func newTestServer(t *testing.T) *testServer {
 		api.NewRefundHandler(refundSvc),
 		api.NewTaxAdminHandler(taxStore, testTenant),
 		api.NewItemHandler(itemStore, testTenant),
+		api.NewExpenseHandler(expenseStore, testTenant, testStore),
 		api.NewInventoryHandler(inv, itemStore, testTenant),
 		api.NewReservationHandler(reservationSvc),
 		eventsHandler,

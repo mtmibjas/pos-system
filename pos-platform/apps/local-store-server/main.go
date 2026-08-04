@@ -36,6 +36,7 @@ import (
 	"github.com/mibjas/pos-platform/apps/local-store-server/internal/clock"
 	"github.com/mibjas/pos-platform/apps/local-store-server/internal/db"
 	"github.com/mibjas/pos-platform/apps/local-store-server/internal/devices"
+	"github.com/mibjas/pos-platform/apps/local-store-server/internal/expenses"
 	"github.com/mibjas/pos-platform/apps/local-store-server/internal/hub"
 	"github.com/mibjas/pos-platform/apps/local-store-server/internal/inventory"
 	"github.com/mibjas/pos-platform/apps/local-store-server/internal/invoices"
@@ -107,6 +108,7 @@ func main() {
 	taxStore := tax.NewStore(sqlDB)
 	taxEng := tax.NewEngine(taxStore)
 	itemStore := items.NewStore(sqlDB, taxStore)
+	expenseStore := expenses.NewStore(sqlDB)
 	refStore := refunds.NewStore(sqlDB, storeTZ)
 	userStore := users.NewStore(sqlDB)
 	deviceStore := devices.NewStore(sqlDB)
@@ -249,6 +251,7 @@ func main() {
 		api.NewRefundHandler(refundSvc),
 		api.NewTaxAdminHandler(taxStore, tenantID),
 		api.NewItemHandler(itemStore, tenantID),
+		api.NewExpenseHandler(expenseStore, tenantID, storeID),
 		api.NewInventoryHandler(inv, itemStore, tenantID),
 		api.NewReservationHandler(reservationSvc),
 		eventsHandler,

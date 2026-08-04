@@ -1,11 +1,14 @@
-/// Cashier login (§4.2 / D3). Shown by [AuthGate] when the terminal is
-/// provisioned but there's no active session. On success the gate advances
-/// to the app. Functional scaffolding — polish later.
+/// Cashier login (§4.2 / D3), on the Dostop design system. Shown by [AuthGate]
+/// when the terminal is provisioned but there's no active session. On success
+/// the gate advances to the app.
 library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../ui/auth_scaffold.dart';
+import '../../ui/theme.dart';
+import '../../ui/tokens.dart';
 import 'session_controller.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -43,58 +46,60 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     final error = ref.watch(sessionControllerProvider).error;
     final counter = ref.watch(deviceControllerProvider).valueOrNull?.counterId;
-    return Scaffold(
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 380),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text('Sign in', style: Theme.of(context).textTheme.headlineSmall),
-                if (counter != null) ...[
-                  const SizedBox(height: 4),
-                  Text(counter, style: Theme.of(context).textTheme.bodyMedium),
-                ],
-                const SizedBox(height: 24),
-                TextFormField(
-                  controller: _username,
-                  decoration: const InputDecoration(
-                      labelText: 'Username', border: OutlineInputBorder()),
-                  textInputAction: TextInputAction.next,
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Required' : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _password,
-                  decoration: const InputDecoration(
-                      labelText: 'Password', border: OutlineInputBorder()),
-                  obscureText: true,
-                  validator: (v) =>
-                      (v == null || v.isEmpty) ? 'Required' : null,
-                  onFieldSubmitted: (_) => _submit(),
-                ),
-                if (error != null) ...[
-                  const SizedBox(height: 12),
-                  Text(_message(error),
-                      style: TextStyle(color: Theme.of(context).colorScheme.error)),
-                ],
-                const SizedBox(height: 20),
-                FilledButton(
-                  onPressed: _submitting ? null : _submit,
-                  child: _submitting
-                      ? const SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Sign in'),
-                ),
-              ],
+
+    return AuthScaffold(
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('Sign in', style: DostopText.h1),
+            const SizedBox(height: 4),
+            Text(
+              (counter?.isNotEmpty ?? false)
+                  ? 'Counter · $counter'
+                  : 'Enter your cashier credentials',
+              style: DostopText.label,
             ),
-          ),
+            const SizedBox(height: 22),
+            AuthField(
+              label: 'Username',
+              controller: _username,
+              hint: 'owner@a',
+              autofocus: true,
+              textInputAction: TextInputAction.next,
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? 'Required' : null,
+            ),
+            const SizedBox(height: 14),
+            AuthField(
+              label: 'Password',
+              controller: _password,
+              hint: '••••••••',
+              obscure: true,
+              onSubmitted: (_) => _submit(),
+              validator: (v) => (v == null || v.isEmpty) ? 'Required' : null,
+            ),
+            if (error != null) AuthError(message: _message(error)),
+            const SizedBox(height: 22),
+            SizedBox(
+              height: 48,
+              child: FilledButton(
+                onPressed: _submitting ? null : _submit,
+                child: _submitting
+                    ? const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                    : const Text('Sign in',
+                        style: TextStyle(
+                            fontFamily: DostopFonts.sans,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800)),
+              ),
+            ),
+          ],
         ),
       ),
     );

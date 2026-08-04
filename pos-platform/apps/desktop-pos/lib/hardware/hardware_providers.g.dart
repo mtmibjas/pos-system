@@ -24,7 +24,7 @@ final escPosTransportProvider = Provider<EscPosTransport?>.internal(
 );
 
 typedef EscPosTransportRef = ProviderRef<EscPosTransport?>;
-String _$receiptPrinterHash() => r'9b1024b18b770e7d8caba7d280aa497219a98375';
+String _$receiptPrinterHash() => r'd3a8d1c950368b452d7ec0f4177d5459f34c0d21';
 
 /// See also [receiptPrinter].
 @ProviderFor(receiptPrinter)
